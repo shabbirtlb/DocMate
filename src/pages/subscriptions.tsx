@@ -14,7 +14,9 @@ import {
   CheckCircle,
   XCircle,
   ArrowRight,
-  X
+  X,
+  Bell,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,8 +31,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSubscriptions, saveSubscription, deleteSubscription } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
 import { getSubscriptionStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
+import { getExpiryThresholds } from '@/utils/settings';
 import { toast } from 'sonner';
-import { format, addMonths, addYears, addWeeks, differenceInDays } from 'date-fns';
+import { format, addMonths, addYears, addWeeks, differenceInDays, subDays } from 'date-fns';
 import type { Subscription } from '@/utils/localdb';
 
 const billingCycles = [
@@ -84,7 +87,9 @@ export function Subscriptions() {
     autoRenewal: true,
     managementUrl: '',
     cost: '',
-    currency: 'USD'
+    currency: 'USD',
+    customNotificationDays: '',
+    enableCustomNotification: false
   });
 
   useEffect(() => {
@@ -159,6 +164,26 @@ export function Subscriptions() {
     }
   };
 
+  const getNotificationInfo = () => {
+    if (!newSubscription.renewalDate) return null;
+
+    const thresholds = getExpiryThresholds();
+    const renewalDate = new Date(newSubscription.renewalDate);
+    const notificationDays = newSubscription.enableCustomNotification 
+      ? parseInt(newSubscription.customNotificationDays) || thresholds.subscriptions.expiringSoonDays
+      : thresholds.subscriptions.expiringSoonDays;
+    
+    const notificationStartDate = subDays(renewalDate, notificationDays);
+    const urgentStartDate = subDays(renewalDate, thresholds.subscriptions.urgentDays);
+    
+    return {
+      notificationStartDate,
+      urgentStartDate,
+      notificationDays,
+      urgentDays: thresholds.subscriptions.urgentDays
+    };
+  };
+
   const handleAddSubscription = async () => {
     if (!newSubscription.name || !newSubscription.planName || !newSubscription.renewalDate) {
       toast.error('Please fill in all required fields');
@@ -189,7 +214,9 @@ export function Subscriptions() {
         autoRenewal: true,
         managementUrl: '',
         cost: '',
-        currency: 'USD'
+        currency: 'USD',
+        customNotificationDays: '',
+        enableCustomNotification: false
       });
       setIsAddDialogOpen(false);
       toast.success('Subscription added successfully');
@@ -335,6 +362,7 @@ export function Subscriptions() {
   };
 
   const categorized = categorizeSubscriptions();
+  const notificationInfo = getNotificationInfo();
 
   if (loading) {
     return (
@@ -381,7 +409,7 @@ export function Subscriptions() {
                 Add Subscription
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Subscription</DialogTitle>
               </DialogHeader>
@@ -460,6 +488,72 @@ export function Subscriptions() {
                     Set to next {newSubscription.billingCycle} renewal
                   </Button>
                 </div>
+
+                {/* Notification Settings */}
+                {newSubscription.renewalDate && (
+                  <div className="space-y-3 p-4 bg-purple-50 dark:bg-purple-950 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <Label className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                        Notification Settings
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="customNotification"
+                        checked={newSubscription.enableCustomNotification}
+                        onCheckedChange={(checked) => 
+                          setNewSubscription(prev => ({ ...prev, enableCustomNotification: checked }))
+                        }
+                      />
+                      <Label htmlFor="customNotification" className="text-sm">
+                        Custom notification timing
+                      </Label>
+                    </div>
+
+                    {newSubscription.enableCustomNotification && (
+                      <div>
+                        <Label htmlFor="notificationDays" className="text-sm">
+                          Notify me (days before renewal)
+                        </Label>
+                        <Input
+                          id="notificationDays"
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={newSubscription.customNotificationDays}
+                          onChange={(e) => setNewSubscription(prev => ({ 
+                            ...prev, 
+                            customNotificationDays: e.target.value 
+                          }))}
+                          placeholder="7"
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+
+                    {notificationInfo && (
+                      <div className="space-y-2 text-xs text-purple-700 dark:text-purple-300">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          <span>
+                            Notifications start: {format(notificationInfo.notificationStartDate, 'MMM d, yyyy')} 
+                            ({notificationInfo.notificationDays} days before)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>
+                            Urgent alerts start: {format(notificationInfo.urgentStartDate, 'MMM d, yyyy')} 
+                            ({notificationInfo.urgentDays} days before)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label htmlFor="cost">Cost (optional)</Label>

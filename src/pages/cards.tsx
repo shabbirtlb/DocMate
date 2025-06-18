@@ -13,7 +13,9 @@ import {
   CheckCircle,
   XCircle,
   ArrowRight,
-  X
+  X,
+  Bell,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,11 +26,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { getCards, saveCard, deleteCard } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
 import { getCardStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
+import { getExpiryThresholds } from '@/utils/settings';
 import { toast } from 'sonner';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, subDays } from 'date-fns';
 import type { Card as CardType } from '@/utils/localdb';
 
 const cardTypes = ['debit', 'credit'] as const;
@@ -63,7 +67,9 @@ export function Cards() {
     bank: '',
     expiryDate: '',
     type: 'debit' as const,
-    supportContact: ''
+    supportContact: '',
+    customNotificationDays: '',
+    enableCustomNotification: false
   });
 
   useEffect(() => {
@@ -125,6 +131,26 @@ export function Cards() {
     setFilteredCards(filtered);
   };
 
+  const getNotificationInfo = () => {
+    if (!newCard.expiryDate) return null;
+
+    const thresholds = getExpiryThresholds();
+    const expiryDate = new Date(newCard.expiryDate);
+    const notificationDays = newCard.enableCustomNotification 
+      ? parseInt(newCard.customNotificationDays) || thresholds.cards.expiringSoonDays
+      : thresholds.cards.expiringSoonDays;
+    
+    const notificationStartDate = subDays(expiryDate, notificationDays);
+    const urgentStartDate = subDays(expiryDate, thresholds.cards.urgentDays);
+    
+    return {
+      notificationStartDate,
+      urgentStartDate,
+      notificationDays,
+      urgentDays: thresholds.cards.urgentDays
+    };
+  };
+
   const handleAddCard = async () => {
     if (!newCard.name || !newCard.lastFourDigits || !newCard.bank || !newCard.expiryDate) {
       toast.error('Please fill in all required fields');
@@ -156,7 +182,9 @@ export function Cards() {
         bank: '',
         expiryDate: '',
         type: 'debit',
-        supportContact: ''
+        supportContact: '',
+        customNotificationDays: '',
+        enableCustomNotification: false
       });
       setIsAddDialogOpen(false);
       toast.success('Card added successfully');
@@ -292,6 +320,7 @@ export function Cards() {
   };
 
   const categorized = categorizeCards();
+  const notificationInfo = getNotificationInfo();
 
   if (loading) {
     return (
@@ -333,7 +362,7 @@ export function Cards() {
                 Add Card
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Card</DialogTitle>
               </DialogHeader>
@@ -410,6 +439,72 @@ export function Cards() {
                     onChange={(e) => setNewCard(prev => ({ ...prev, expiryDate: e.target.value + '-01' }))}
                   />
                 </div>
+
+                {/* Notification Settings */}
+                {newCard.expiryDate && (
+                  <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <Label className="text-sm font-medium text-green-800 dark:text-green-200">
+                        Notification Settings
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="customNotification"
+                        checked={newCard.enableCustomNotification}
+                        onCheckedChange={(checked) => 
+                          setNewCard(prev => ({ ...prev, enableCustomNotification: checked }))
+                        }
+                      />
+                      <Label htmlFor="customNotification" className="text-sm">
+                        Custom notification timing
+                      </Label>
+                    </div>
+
+                    {newCard.enableCustomNotification && (
+                      <div>
+                        <Label htmlFor="notificationDays" className="text-sm">
+                          Notify me (days before expiry)
+                        </Label>
+                        <Input
+                          id="notificationDays"
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={newCard.customNotificationDays}
+                          onChange={(e) => setNewCard(prev => ({ 
+                            ...prev, 
+                            customNotificationDays: e.target.value 
+                          }))}
+                          placeholder="90"
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+
+                    {notificationInfo && (
+                      <div className="space-y-2 text-xs text-green-700 dark:text-green-300">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          <span>
+                            Notifications start: {format(notificationInfo.notificationStartDate, 'MMM d, yyyy')} 
+                            ({notificationInfo.notificationDays} days before)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>
+                            Urgent alerts start: {format(notificationInfo.urgentStartDate, 'MMM d, yyyy')} 
+                            ({notificationInfo.urgentDays} days before)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor="support">Support Contact (optional)</Label>
                   <Input
