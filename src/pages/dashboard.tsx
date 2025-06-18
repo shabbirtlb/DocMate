@@ -597,7 +597,7 @@ export function Dashboard() {
                   <Link to="/documents">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-md">
-                        <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <FileText className="h-4 w-2 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-left">
                         <p className="font-medium">Add Your First Document</p>
