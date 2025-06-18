@@ -15,4 +15,17 @@ export async function initializeApp() {
 
   // Request notification permission
   await requestNotificationPermission();
+
+  // Set up periodic expiry checks
+  setInterval(() => {
+    checkExpiryAlerts();
+  }, 24 * 60 * 60 * 1000); // Check daily
+
+  // Check expiry alerts on app load
+  checkExpiryAlerts();
+}
+
+async function checkExpiryAlerts() {
+  // This will be implemented to check for upcoming expirations
+  // and show notifications if permission is granted
 }
