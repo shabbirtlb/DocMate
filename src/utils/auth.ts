@@ -237,11 +237,17 @@ export function initAuthListener(callback: (user: User | null) => void) {
   supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
       try {
-        const user = await getUserProfile(session.user);
+        let user: User;
+        try {
+          user = await getUserProfile(session.user);
+        } catch (profileError) {
+          // If profile doesn't exist, create it (for existing auth users)
+          user = await createUserProfile(session.user, session.user.user_metadata?.name || 'User');
+        }
         localStorage.setItem('documate-current-user', JSON.stringify(user));
         callback(user);
       } catch (error) {
-        console.error('Error getting user profile:', error);
+        console.error('Error handling auth state change:', error);
         callback(null);
       }
     } else if (event === 'SIGNED_OUT') {
