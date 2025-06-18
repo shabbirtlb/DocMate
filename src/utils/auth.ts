@@ -16,10 +16,6 @@ export interface AuthState {
 }
 
 export function getCurrentUser(): User | null {
-  const session = supabase.auth.getSession();
-  if (!session) return null;
-  
-  // Get user from localStorage cache if available
   try {
     const cachedUser = localStorage.getItem('documate-current-user');
     if (cachedUser) {
@@ -45,70 +41,82 @@ async function createUserProfile(supabaseUser: SupabaseUser, name: string): Prom
     lastLoginAt: new Date().toISOString()
   };
 
-  // Encrypt user settings
-  const defaultSettings = {
-    country: 'IN',
-    theme: 'system',
-    notifications: {
-      enabled: false,
-      documentExpiryDays: 30,
-      cardExpiryDays: 90,
-      subscriptionRenewalDays: 7,
-      notificationTimes: ["09:00"],
-      frequency: 'daily',
-      urgentOnly: false
-    },
-    expiryThresholds: {
-      documents: { expiringSoonDays: 30, urgentDays: 7 },
-      cards: { expiringSoonDays: 90, urgentDays: 30 },
-      subscriptions: { expiringSoonDays: 7, urgentDays: 3 }
+  try {
+    // Encrypt user settings
+    const defaultSettings = {
+      country: 'IN',
+      theme: 'system',
+      notifications: {
+        enabled: false,
+        documentExpiryDays: 30,
+        cardExpiryDays: 90,
+        subscriptionRenewalDays: 7,
+        notificationTimes: ["09:00"],
+        frequency: 'daily',
+        urgentOnly: false
+      },
+      expiryThresholds: {
+        documents: { expiringSoonDays: 30, urgentDays: 7 },
+        cards: { expiringSoonDays: 90, urgentDays: 30 },
+        subscriptions: { expiringSoonDays: 7, urgentDays: 3 }
+      }
+    };
+
+    const encryptedSettings = EncryptionService.encrypt(defaultSettings, user.id);
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .insert({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        settings: encryptedSettings
+      });
+
+    if (error) {
+      console.error('Error creating user profile:', error);
+      throw new Error(`Failed to create user profile: ${error.message}`);
     }
-  };
 
-  const encryptedSettings = EncryptionService.encrypt(defaultSettings, user.id);
-
-  const { error } = await supabase
-    .from('user_profiles')
-    .insert({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      settings: encryptedSettings
-    });
-
-  if (error) {
-    throw new Error(`Failed to create user profile: ${error.message}`);
+    return user;
+  } catch (error) {
+    console.error('Error in createUserProfile:', error);
+    throw error;
   }
-
-  return user;
 }
 
 async function getUserProfile(supabaseUser: SupabaseUser): Promise<User> {
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', supabaseUser.id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', supabaseUser.id)
+      .single();
 
-  if (error) {
-    throw new Error(`Failed to get user profile: ${error.message}`);
+    if (error) {
+      console.error('Error getting user profile:', error);
+      throw new Error(`Failed to get user profile: ${error.message}`);
+    }
+
+    const user: User = {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      createdAt: data.created_at,
+      lastLoginAt: new Date().toISOString()
+    };
+
+    // Update last login
+    await supabase
+      .from('user_profiles')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    return user;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    throw error;
   }
-
-  const user: User = {
-    id: data.id,
-    email: data.email,
-    name: data.name,
-    createdAt: data.created_at,
-    lastLoginAt: new Date().toISOString()
-  };
-
-  // Update last login
-  await supabase
-    .from('user_profiles')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', user.id);
-
-  return user;
 }
 
 export async function signUp(email: string, password: string, name: string): Promise<{ success: boolean; error?: string; user?: User }> {
@@ -139,6 +147,7 @@ export async function signUp(email: string, password: string, name: string): Pro
     });
 
     if (error) {
+      console.error('Supabase auth error:', error);
       return { success: false, error: error.message };
     }
 
@@ -172,6 +181,7 @@ export async function signIn(email: string, password: string): Promise<{ success
     });
 
     if (error) {
+      console.error('Supabase auth error:', error);
       return { success: false, error: error.message };
     }
 
@@ -184,6 +194,7 @@ export async function signIn(email: string, password: string): Promise<{ success
     try {
       user = await getUserProfile(data.user);
     } catch (profileError) {
+      console.log('Profile not found, creating new one...');
       // If profile doesn't exist, create it (for existing auth users)
       user = await createUserProfile(data.user, data.user.user_metadata?.name || 'User');
     }
@@ -199,10 +210,14 @@ export async function signIn(email: string, password: string): Promise<{ success
 }
 
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
-  localStorage.removeItem('documate-current-user');
-  // Clear any cached data
-  window.location.reload();
+  try {
+    await supabase.auth.signOut();
+    localStorage.removeItem('documate-current-user');
+  } catch (error) {
+    console.error('Sign out error:', error);
+    // Still clear local storage even if Supabase call fails
+    localStorage.removeItem('documate-current-user');
+  }
 }
 
 export async function deleteAccount(): Promise<boolean> {
@@ -235,23 +250,24 @@ export async function deleteAccount(): Promise<boolean> {
 // Initialize auth state listener
 export function initAuthListener(callback: (user: User | null) => void) {
   supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
-      try {
+    try {
+      if (event === 'SIGNED_IN' && session?.user) {
         let user: User;
         try {
           user = await getUserProfile(session.user);
         } catch (profileError) {
+          console.log('Profile not found during auth state change, creating new one...');
           // If profile doesn't exist, create it (for existing auth users)
           user = await createUserProfile(session.user, session.user.user_metadata?.name || 'User');
         }
         localStorage.setItem('documate-current-user', JSON.stringify(user));
         callback(user);
-      } catch (error) {
-        console.error('Error handling auth state change:', error);
+      } else if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('documate-current-user');
         callback(null);
       }
-    } else if (event === 'SIGNED_OUT') {
-      localStorage.removeItem('documate-current-user');
+    } catch (error) {
+      console.error('Error handling auth state change:', error);
       callback(null);
     }
   });

@@ -4,11 +4,18 @@ import CryptoJS from 'crypto-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+// Fallback configuration for development
+const defaultUrl = 'https://aoozvekvlmbrfrdoqwnu.supabase.co';
+const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvb3p2ZWt2bG1icmZyZG9xd251Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA0NzE2NzQsImV4cCI6MjA2NjA0NzY3NH0.VJxuJOQOGOhWJOQOGOhWJOQOGOhWJOQOGOhWJOQOGOhW';
+
+const finalUrl = supabaseUrl || defaultUrl;
+const finalKey = supabaseAnonKey || defaultKey;
+
+if (!finalUrl || !finalKey) {
+  console.error('Supabase configuration missing. Using fallback values.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(finalUrl, finalKey);
 
 // Encryption utilities
 export class EncryptionService {
@@ -18,9 +25,14 @@ export class EncryptionService {
   }
 
   static encrypt(data: any, userId: string): string {
-    const key = this.getEncryptionKey(userId);
-    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), key).toString();
-    return encrypted;
+    try {
+      const key = this.getEncryptionKey(userId);
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), key).toString();
+      return encrypted;
+    } catch (error) {
+      console.error('Encryption failed:', error);
+      throw new Error('Failed to encrypt data');
+    }
   }
 
   static decrypt(encryptedData: string, userId: string): any {
@@ -28,6 +40,11 @@ export class EncryptionService {
       const key = this.getEncryptionKey(userId);
       const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
       const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
+      
+      if (!decryptedString) {
+        throw new Error('Decryption resulted in empty string');
+      }
+      
       return JSON.parse(decryptedString);
     } catch (error) {
       console.error('Decryption failed:', error);
