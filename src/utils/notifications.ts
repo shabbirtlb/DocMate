@@ -135,8 +135,3 @@ function clearScheduledNotifications(): void {
   // In a real implementation, you'd clear any existing timeouts/intervals
   // For now, this is a placeholder
 }
-
-// Initialize notification scheduling when the module loads
-if (typeof window !== 'undefined') {
-  scheduleNotifications();
-}
