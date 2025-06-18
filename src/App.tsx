@@ -4,7 +4,6 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider, useAuth } from '@/components/auth/auth-provider';
 import { AuthForm } from '@/components/auth/auth-form';
 import { Toaster } from '@/components/ui/sonner';
-import { initDB } from '@/utils/localdb';
 import { Sidebar } from '@/components/sidebar';
 import { Dashboard } from '@/pages/dashboard';
 import { Documents } from '@/pages/documents';
@@ -15,44 +14,20 @@ import { NotificationManager } from '@/components/notification-manager';
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [dbInitialized, setDbInitialized] = useState(false);
-
-  useEffect(() => {
-    const initializeDB = async () => {
-      if (isAuthenticated) {
-        try {
-          await initDB();
-          setDbInitialized(true);
-        } catch (error) {
-          console.error('Failed to initialize database:', error);
-        }
-      }
-    };
-
-    initializeDB();
-  }, [isAuthenticated]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your secure workspace...</p>
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return <AuthForm />;
-  }
-
-  if (!dbInitialized) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Initializing your secure storage...</p>
-        </div>
-      </div>
-    );
   }
 
   return (

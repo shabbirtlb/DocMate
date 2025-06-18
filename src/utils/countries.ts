@@ -93,14 +93,11 @@ export function getCountryByCode(code: string): Country | undefined {
 }
 
 export function getSelectedCountry(): Country {
-  const savedCountry = localStorage.getItem('documate-country');
-  if (savedCountry) {
-    const country = getCountryByCode(savedCountry);
-    if (country) return country;
-  }
+  // This will be replaced by async version from settings
   return countries[0]; // Default to India
 }
 
 export function setSelectedCountry(countryCode: string): void {
-  localStorage.setItem('documate-country', countryCode);
+  // This will be replaced by async version from settings
+  console.log('Setting country to:', countryCode);
 }

@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { getCurrentUser, signIn, signUp, signOut, deleteAccount } from '@/utils/auth';
+import { getCurrentUser, signIn, signUp, signOut, deleteAccount, initAuthListener } from '@/utils/auth';
 import type { User, AuthState } from '@/utils/auth';
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   deleteAccount: () => Promise<boolean>;
 }
 
@@ -19,6 +19,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    // Initialize auth listener first
+    initAuthListener((user) => {
+      setAuthState({
+        user,
+        isAuthenticated: !!user,
+        isLoading: false
+      });
+    });
+
     // Check for existing authentication on mount
     const user = getCurrentUser();
     setAuthState({
@@ -29,47 +38,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSignIn = async (email: string, password: string) => {
+    setAuthState(prev => ({ ...prev, isLoading: true }));
+    
     const result = await signIn(email, password);
+    
     if (result.success && result.user) {
       setAuthState({
         user: result.user,
         isAuthenticated: true,
         isLoading: false
       });
+    } else {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     }
+    
     return result;
   };
 
   const handleSignUp = async (email: string, password: string, name: string) => {
+    setAuthState(prev => ({ ...prev, isLoading: true }));
+    
     const result = await signUp(email, password, name);
+    
     if (result.success && result.user) {
       setAuthState({
         user: result.user,
         isAuthenticated: true,
         isLoading: false
       });
+    } else {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     }
+    
     return result;
   };
 
-  const handleSignOut = () => {
-    signOut();
-    setAuthState({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false
-    });
+  const handleSignOut = async () => {
+    setAuthState(prev => ({ ...prev, isLoading: true }));
+    await signOut();
+    // signOut() will reload the page, so no need to update state
   };
 
   const handleDeleteAccount = async () => {
+    setAuthState(prev => ({ ...prev, isLoading: true }));
     const success = await deleteAccount();
-    if (success) {
-      setAuthState({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false
-      });
-    }
+    // deleteAccount() will reload the page, so no need to update state
     return success;
   };
 
