@@ -1,6 +1,3 @@
-import { supabase, EncryptionService } from './supabase';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
-
 export interface User {
   id: string;
   email: string;
@@ -15,108 +12,64 @@ export interface AuthState {
   isLoading: boolean;
 }
 
+const AUTH_STORAGE_KEY = 'documate-auth';
+const USERS_STORAGE_KEY = 'documate-users';
+
+// Simulate password hashing (in production, use proper bcrypt)
+function hashPassword(password: string): string {
+  // Simple hash for demo - use proper bcrypt in production
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function generateUserId(): string {
+  return 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+}
+
 export function getCurrentUser(): User | null {
   try {
-    const cachedUser = localStorage.getItem('documate-current-user');
-    if (cachedUser) {
-      return JSON.parse(cachedUser);
+    const authData = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!authData) return null;
+    
+    const { userId } = JSON.parse(authData);
+    const users = getStoredUsers();
+    const user = users.find(u => u.id === userId);
+    
+    if (user) {
+      // Update last login
+      user.lastLoginAt = new Date().toISOString();
+      saveUsers(users);
+      return user;
     }
+    
+    return null;
   } catch (error) {
-    console.error('Error getting cached user:', error);
+    console.error('Error getting current user:', error);
+    return null;
   }
-  
-  return null;
 }
 
 export function isAuthenticated(): boolean {
   return getCurrentUser() !== null;
 }
 
-async function createUserProfile(supabaseUser: SupabaseUser, name: string): Promise<User> {
-  const user: User = {
-    id: supabaseUser.id,
-    email: supabaseUser.email!,
-    name: name.trim(),
-    createdAt: new Date().toISOString(),
-    lastLoginAt: new Date().toISOString()
-  };
-
+function getStoredUsers(): User[] {
   try {
-    // Encrypt user settings
-    const defaultSettings = {
-      country: 'IN',
-      theme: 'system',
-      notifications: {
-        enabled: false,
-        documentExpiryDays: 30,
-        cardExpiryDays: 90,
-        subscriptionRenewalDays: 7,
-        notificationTimes: ["09:00"],
-        frequency: 'daily',
-        urgentOnly: false
-      },
-      expiryThresholds: {
-        documents: { expiringSoonDays: 30, urgentDays: 7 },
-        cards: { expiringSoonDays: 90, urgentDays: 30 },
-        subscriptions: { expiringSoonDays: 7, urgentDays: 3 }
-      }
-    };
-
-    const encryptedSettings = EncryptionService.encrypt(defaultSettings, user.id);
-
-    const { error } = await supabase
-      .from('user_profiles')
-      .insert({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        settings: encryptedSettings
-      });
-
-    if (error) {
-      console.error('Error creating user profile:', error);
-      throw new Error(`Failed to create user profile: ${error.message}`);
-    }
-
-    return user;
+    const users = localStorage.getItem(USERS_STORAGE_KEY);
+    return users ? JSON.parse(users) : [];
   } catch (error) {
-    console.error('Error in createUserProfile:', error);
-    throw error;
+    console.error('Error getting stored users:', error);
+    return [];
   }
 }
 
-async function getUserProfile(supabaseUser: SupabaseUser): Promise<User> {
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', supabaseUser.id)
-      .single();
-
-    if (error) {
-      console.error('Error getting user profile:', error);
-      throw new Error(`Failed to get user profile: ${error.message}`);
-    }
-
-    const user: User = {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      createdAt: data.created_at,
-      lastLoginAt: new Date().toISOString()
-    };
-
-    // Update last login
-    await supabase
-      .from('user_profiles')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', user.id);
-
-    return user;
-  } catch (error) {
-    console.error('Error in getUserProfile:', error);
-    throw error;
-  }
+function saveUsers(users: User[]): void {
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
 }
 
 export async function signUp(email: string, password: string, name: string): Promise<{ success: boolean; error?: string; user?: User }> {
@@ -135,31 +88,33 @@ export async function signUp(email: string, password: string, name: string): Pro
       return { success: false, error: 'Please enter a valid email address' };
     }
 
-    // Sign up with Supabase Auth
-    const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase(),
-      password: password,
-      options: {
-        data: {
-          name: name.trim()
-        }
-      }
-    });
-
-    if (error) {
-      console.error('Supabase auth error:', error);
-      return { success: false, error: error.message };
-    }
-
-    if (!data.user) {
-      return { success: false, error: 'Failed to create account' };
-    }
-
-    // Create user profile
-    const user = await createUserProfile(data.user, name);
+    const users = getStoredUsers();
     
-    // Cache user locally
-    localStorage.setItem('documate-current-user', JSON.stringify(user));
+    // Check if user already exists
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+      return { success: false, error: 'An account with this email already exists' };
+    }
+
+    // Create new user
+    const user: User = {
+      id: generateUserId(),
+      email: email.toLowerCase(),
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+
+    // Store user with hashed password
+    users.push(user);
+    saveUsers(users);
+    
+    // Store password separately (in production, this would be properly secured)
+    const passwords = JSON.parse(localStorage.getItem('documate-passwords') || '{}');
+    passwords[user.id] = hashPassword(password);
+    localStorage.setItem('documate-passwords', JSON.stringify(passwords));
+
+    // Set current user
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ userId: user.id }));
 
     return { success: true, user };
   } catch (error) {
@@ -174,33 +129,28 @@ export async function signIn(email: string, password: string): Promise<{ success
       return { success: false, error: 'Email and password are required' };
     }
 
-    // Sign in with Supabase Auth
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase(),
-      password: password
-    });
-
-    if (error) {
-      console.error('Supabase auth error:', error);
-      return { success: false, error: error.message };
+    const users = getStoredUsers();
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      return { success: false, error: 'Invalid email or password' };
     }
 
-    if (!data.user) {
-      return { success: false, error: 'Failed to sign in' };
+    // Check password
+    const passwords = JSON.parse(localStorage.getItem('documate-passwords') || '{}');
+    const storedPasswordHash = passwords[user.id];
+    const inputPasswordHash = hashPassword(password);
+
+    if (storedPasswordHash !== inputPasswordHash) {
+      return { success: false, error: 'Invalid email or password' };
     }
 
-    // Get or create user profile
-    let user: User;
-    try {
-      user = await getUserProfile(data.user);
-    } catch (profileError) {
-      console.log('Profile not found, creating new one...');
-      // If profile doesn't exist, create it (for existing auth users)
-      user = await createUserProfile(data.user, data.user.user_metadata?.name || 'User');
-    }
+    // Update last login
+    user.lastLoginAt = new Date().toISOString();
+    saveUsers(users);
 
-    // Cache user locally
-    localStorage.setItem('documate-current-user', JSON.stringify(user));
+    // Set current user
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ userId: user.id }));
 
     return { success: true, user };
   } catch (error) {
@@ -209,85 +159,43 @@ export async function signIn(email: string, password: string): Promise<{ success
   }
 }
 
-export async function signOut(): Promise<void> {
-  try {
-    // Clear local storage first
-    localStorage.removeItem('documate-current-user');
-    
-    // Then sign out from Supabase
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Supabase sign out error:', error);
-    }
-    
-    // Force page reload to clear all state
-    window.location.reload();
-  } catch (error) {
-    console.error('Sign out error:', error);
-    // Still clear local storage and reload even if Supabase call fails
-    localStorage.removeItem('documate-current-user');
-    window.location.reload();
-  }
+export function signOut(): void {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  // Clear any cached data
+  window.location.reload();
 }
 
-export async function deleteAccount(): Promise<boolean> {
-  try {
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      return false;
-    }
-
-    // Delete user data from all tables
-    const deletePromises = [
-      supabase.from('documents').delete().eq('user_id', currentUser.id),
-      supabase.from('cards').delete().eq('user_id', currentUser.id),
-      supabase.from('subscriptions').delete().eq('user_id', currentUser.id),
-      supabase.from('user_profiles').delete().eq('id', currentUser.id)
-    ];
-
-    await Promise.all(deletePromises);
-
-    // Clear local storage
-    localStorage.removeItem('documate-current-user');
-    
-    // Sign out from Supabase
-    await supabase.auth.signOut();
-    
-    // Force page reload to clear all state
-    window.location.reload();
-
-    return true;
-  } catch (error) {
-    console.error('Error deleting account:', error);
-    // Still try to clear local state
-    localStorage.removeItem('documate-current-user');
-    window.location.reload();
-    return false;
-  }
-}
-
-// Initialize auth state listener
-export function initAuthListener(callback: (user: User | null) => void) {
-  supabase.auth.onAuthStateChange(async (event, session) => {
+export function deleteAccount(): Promise<boolean> {
+  return new Promise((resolve) => {
     try {
-      if (event === 'SIGNED_IN' && session?.user) {
-        let user: User;
-        try {
-          user = await getUserProfile(session.user);
-        } catch (profileError) {
-          console.log('Profile not found during auth state change, creating new one...');
-          // If profile doesn't exist, create it (for existing auth users)
-          user = await createUserProfile(session.user, session.user.user_metadata?.name || 'User');
-        }
-        localStorage.setItem('documate-current-user', JSON.stringify(user));
-        callback(user);
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('documate-current-user');
-        callback(null);
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        resolve(false);
+        return;
       }
+
+      // Remove user from users list
+      const users = getStoredUsers();
+      const updatedUsers = users.filter(u => u.id !== currentUser.id);
+      saveUsers(updatedUsers);
+
+      // Remove password
+      const passwords = JSON.parse(localStorage.getItem('documate-passwords') || '{}');
+      delete passwords[currentUser.id];
+      localStorage.setItem('documate-passwords', JSON.stringify(passwords));
+
+      // Clear auth
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+
+      // Clear user-specific data from IndexedDB
+      const dbName = `DocumenteDB_${currentUser.id}`;
+      const deleteRequest = indexedDB.deleteDatabase(dbName);
+      
+      deleteRequest.onsuccess = () => resolve(true);
+      deleteRequest.onerror = () => resolve(true); // Still consider success even if DB deletion fails
     } catch (error) {
-      console.error('Error handling auth state change:', error);
-      callback(null);
+      console.error('Error deleting account:', error);
+      resolve(false);
     }
   });
 }
