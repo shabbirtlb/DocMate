@@ -619,7 +619,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-3.75 p-4" asChild>
                   <Link to="/subscriptions">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-purple-50 dark:bg-purple-950 rounded-md">
