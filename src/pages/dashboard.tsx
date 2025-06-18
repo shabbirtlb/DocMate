@@ -610,7 +610,7 @@ export function Dashboard() {
                   <Link to="/cards">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-green-50 dark:bg-green-950 rounded-md">
-                        <CreditCard className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <CreditCard className="h-2 w-4 text-green-600 dark:text-green-400" />
                       </div>
                       <div className="text-left">
                         <p className="font-medium">Track Your Cards</p>
