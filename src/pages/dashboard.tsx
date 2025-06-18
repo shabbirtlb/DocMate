@@ -582,7 +582,7 @@ export function Dashboard() {
       </div>
 
       {/* Smart Suggestions - Always show */}
-      <Card className="border-l-4 border-l-red-500">
+      <Card className="border-l-4 border-l-orange-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-blue-500" />
