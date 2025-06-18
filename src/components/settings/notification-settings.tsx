@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { getNotificationSettings, saveNotificationSettings, getExpiryThresholds, saveExpiryThresholds, resetToDefaults, type NotificationSettings, type ExpiryThresholds } from '@/utils/settings';
+import { saveNotificationSettings, saveExpiryThresholds, resetToDefaults, type NotificationSettings, type ExpiryThresholds } from '@/utils/settings';
 import { toast } from 'sonner';
 
 interface NotificationSettingsProps {
@@ -27,23 +27,28 @@ export function NotificationSettingsComponent({
   const [localSettings, setLocalSettings] = useState(settings);
   const [localThresholds, setLocalThresholds] = useState(thresholds);
 
-  const handleSave = () => {
-    saveNotificationSettings(localSettings);
-    saveExpiryThresholds(localThresholds);
-    onSettingsChange(localSettings);
-    onThresholdsChange(localThresholds);
-    toast.success('Settings saved successfully');
+  const handleSave = async () => {
+    try {
+      await saveNotificationSettings(localSettings);
+      await saveExpiryThresholds(localThresholds);
+      onSettingsChange(localSettings);
+      onThresholdsChange(localThresholds);
+      toast.success('Settings saved successfully');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+    }
   };
 
-  const handleReset = () => {
-    resetToDefaults();
-    const defaultSettings = getNotificationSettings();
-    const defaultThresholds = getExpiryThresholds();
-    setLocalSettings(defaultSettings);
-    setLocalThresholds(defaultThresholds);
-    onSettingsChange(defaultSettings);
-    onThresholdsChange(defaultThresholds);
-    toast.success('Settings reset to defaults');
+  const handleReset = async () => {
+    try {
+      await resetToDefaults();
+      // Reload the page to get fresh default settings
+      window.location.reload();
+    } catch (error) {
+      console.error('Error resetting settings:', error);
+      toast.error('Failed to reset settings');
+    }
   };
 
   const addNotificationTime = () => {

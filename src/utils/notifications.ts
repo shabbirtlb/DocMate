@@ -3,6 +3,7 @@ import { getCurrentUser } from './auth';
 
 // Store timeout IDs for cleanup
 let scheduledTimeouts: NodeJS.Timeout[] = [];
+let notificationCheckInterval: NodeJS.Timeout | null = null;
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   if (!('Notification' in window)) {
@@ -15,8 +16,14 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   }
 
   if (Notification.permission !== 'denied') {
-    const permission = await Notification.requestPermission();
-    return permission;
+    try {
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission:', permission);
+      return permission;
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      return 'denied';
+    }
   }
 
   return Notification.permission;
@@ -24,11 +31,17 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 
 export function showNotification(title: string, options?: NotificationOptions): void {
   if (Notification.permission === 'granted') {
-    new Notification(title, {
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      ...options
-    });
+    try {
+      new Notification(title, {
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        ...options
+      });
+    } catch (error) {
+      console.error('Error showing notification:', error);
+    }
+  } else {
+    console.warn('Notification permission not granted');
   }
 }
 
@@ -51,6 +64,12 @@ export async function checkUpcomingExpirations(
     const settings = await getNotificationSettings();
     
     if (!settings.enabled) {
+      return;
+    }
+
+    // Check if we have permission
+    if (Notification.permission !== 'granted') {
+      console.warn('Notification permission not granted');
       return;
     }
 
@@ -124,33 +143,73 @@ export async function scheduleNotifications(): Promise<void> {
     const settings = await getNotificationSettings();
     
     if (!settings.enabled) {
+      clearScheduledNotifications();
+      return;
+    }
+
+    // Check if we have permission
+    if (Notification.permission !== 'granted') {
+      console.warn('Cannot schedule notifications: permission not granted');
       return;
     }
 
     // Clear existing scheduled notifications
     clearScheduledNotifications();
 
+    // Set up daily notification checks
+    const checkNotifications = async () => {
+      try {
+        const { getDocuments, getCards, getSubscriptions } = await import('./localdb');
+        const [documents, cards, subscriptions] = await Promise.all([
+          getDocuments(),
+          getCards(),
+          getSubscriptions()
+        ]);
+
+        const allItems = [
+          ...documents.map(doc => ({ ...doc, type: 'document' as const })),
+          ...cards.map(card => ({ ...card, type: 'card' as const })),
+          ...subscriptions.map(sub => ({ ...sub, type: 'subscription' as const, expiryDate: sub.renewalDate }))
+        ];
+
+        await checkUpcomingExpirations(allItems);
+      } catch (error) {
+        console.error('Error in scheduled notification check:', error);
+      }
+    };
+
     // Schedule notifications based on user's preferred times
     settings.notificationTimes.forEach(time => {
       const [hours, minutes] = time.split(':').map(Number);
-      const now = new Date();
-      const scheduledTime = new Date();
-      scheduledTime.setHours(hours, minutes, 0, 0);
+      
+      const scheduleDaily = () => {
+        const now = new Date();
+        const scheduledTime = new Date();
+        scheduledTime.setHours(hours, minutes, 0, 0);
 
-      // If the time has already passed today, schedule for tomorrow
-      if (scheduledTime <= now) {
-        scheduledTime.setDate(scheduledTime.getDate() + 1);
-      }
+        // If the time has already passed today, schedule for tomorrow
+        if (scheduledTime <= now) {
+          scheduledTime.setDate(scheduledTime.getDate() + 1);
+        }
 
-      const timeUntilNotification = scheduledTime.getTime() - now.getTime();
+        const timeUntilNotification = scheduledTime.getTime() - now.getTime();
 
-      const timeoutId = setTimeout(() => {
-        // This would trigger the notification check
-        console.log('Scheduled notification check triggered');
-      }, timeUntilNotification);
+        const timeoutId = setTimeout(() => {
+          checkNotifications();
+          // Schedule the next day
+          scheduleDaily();
+        }, timeUntilNotification);
 
-      scheduledTimeouts.push(timeoutId);
+        scheduledTimeouts.push(timeoutId);
+      };
+
+      scheduleDaily();
     });
+
+    // Also set up a general interval check (every 4 hours as backup)
+    notificationCheckInterval = setInterval(checkNotifications, 4 * 60 * 60 * 1000);
+
+    console.log('Notifications scheduled successfully');
   } catch (error) {
     console.error('Error scheduling notifications:', error);
   }
@@ -162,4 +221,22 @@ export function clearScheduledNotifications(): void {
     clearTimeout(timeoutId);
   });
   scheduledTimeouts = [];
+
+  // Clear interval check
+  if (notificationCheckInterval) {
+    clearInterval(notificationCheckInterval);
+    notificationCheckInterval = null;
+  }
+}
+
+// Initialize notifications when the module loads
+export async function initializeNotifications(): Promise<void> {
+  try {
+    const currentUser = getCurrentUser();
+    if (currentUser) {
+      await scheduleNotifications();
+    }
+  } catch (error) {
+    console.error('Error initializing notifications:', error);
+  }
 }

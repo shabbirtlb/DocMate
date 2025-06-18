@@ -1,6 +1,6 @@
 import { generateUUID } from './uuid';
 import { initDB } from './localdb';
-import { requestNotificationPermission } from './notifications';
+import { initializeNotifications } from './notifications';
 
 export async function initializeApp() {
   // Generate or retrieve user ID
@@ -13,19 +13,6 @@ export async function initializeApp() {
   // Initialize IndexedDB
   await initDB();
 
-  // Request notification permission
-  await requestNotificationPermission();
-
-  // Set up periodic expiry checks
-  setInterval(() => {
-    checkExpiryAlerts();
-  }, 24 * 60 * 60 * 1000); // Check daily
-
-  // Check expiry alerts on app load
-  checkExpiryAlerts();
-}
-
-async function checkExpiryAlerts() {
-  // This will be implemented to check for upcoming expirations
-  // and show notifications if permission is granted
+  // Initialize notifications
+  await initializeNotifications();
 }

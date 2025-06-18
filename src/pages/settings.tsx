@@ -24,7 +24,7 @@ import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/components/auth/auth-provider';
 import { exportAllData, importAllData } from '@/utils/localdb';
 import { countries } from '@/utils/countries';
-import { requestNotificationPermission } from '@/utils/notifications';
+import { requestNotificationPermission, scheduleNotifications, clearScheduledNotifications } from '@/utils/notifications';
 import { 
   getNotificationSettings, 
   getExpiryThresholds,
@@ -127,13 +127,21 @@ export function Settings() {
   };
 
   const handleRequestNotifications = async () => {
-    const permission = await requestNotificationPermission();
-    setNotificationPermission(permission);
-    
-    if (permission === 'granted') {
-      toast.success('Notifications enabled successfully');
-    } else if (permission === 'denied') {
-      toast.error('Notifications were denied. You can enable them in your browser settings.');
+    try {
+      const permission = await requestNotificationPermission();
+      setNotificationPermission(permission);
+      
+      if (permission === 'granted') {
+        toast.success('Notifications enabled successfully');
+        // Re-schedule notifications with new permission
+        await scheduleNotifications();
+      } else if (permission === 'denied') {
+        toast.error('Notifications were denied. You can enable them in your browser settings.');
+        clearScheduledNotifications();
+      }
+    } catch (error) {
+      console.error('Error requesting notifications:', error);
+      toast.error('Failed to request notification permission');
     }
   };
 
@@ -150,6 +158,21 @@ export function Settings() {
       console.error('Error deleting account:', error);
       toast.error('Failed to delete account');
       setIsDeletingAccount(false);
+    }
+  };
+
+  const handleNotificationSettingsChange = async (newSettings: NotificationSettings) => {
+    setNotificationSettings(newSettings);
+    
+    // Re-schedule notifications when settings change
+    try {
+      if (newSettings.enabled && notificationPermission === 'granted') {
+        await scheduleNotifications();
+      } else {
+        clearScheduledNotifications();
+      }
+    } catch (error) {
+      console.error('Error updating notification schedule:', error);
     }
   };
 
@@ -326,7 +349,7 @@ export function Settings() {
             <NotificationSettingsComponent
               settings={notificationSettings}
               thresholds={expiryThresholds}
-              onSettingsChange={setNotificationSettings}
+              onSettingsChange={handleNotificationSettingsChange}
               onThresholdsChange={setExpiryThresholds}
             />
           )}
