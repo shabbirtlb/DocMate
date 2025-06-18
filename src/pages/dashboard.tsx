@@ -640,6 +640,28 @@ export function Dashboard() {
                   </Link>
                 </Button>
                 <Button variant="outline" className="justify-start h-auto p-4" asChild>
+                  <Link to="/cards">
+                    <div className="flex items-center gap-3">
+                      <Plus className="h-4 w-4" />
+                      <div className="text-left">
+                        <p className="font-medium">Add More Cards</p>
+                        <p className="text-xs text-muted-foreground">Keep track of the cards.</p>
+                      </div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="justify-start h-auto p-4" asChild>
+                  <Link to="/cards">
+                    <div className="flex items-center gap-3">
+                      <Plus className="h-4 w-4" />
+                      <div className="text-left">
+                        <p className="font-medium">Manage Subscriptions</p>
+                        <p className="text-xs text-muted-foreground">Keep track of your subscriptions.</p>
+                      </div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="justify-start h-auto p-4" asChild>
                   <Link to="/settings">
                     <div className="flex items-center gap-3">
                       <Zap className="h-4 w-4" />
