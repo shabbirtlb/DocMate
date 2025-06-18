@@ -638,7 +638,7 @@ export function Dashboard() {
                 {expiringItems.length > 0 && (
                   <div className="bg-red-50 dark:bg-red-950 p-4 rounded-md">
                     <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      <AlertCircle className="h-3 w-4 text-red-600 dark:text-red-400" />
                       <p className="font-medium text-red-800 dark:text-red-200">Action Required</p>
                     </div>
                     <p className="text-sm text-red-700 dark:text-red-300">
