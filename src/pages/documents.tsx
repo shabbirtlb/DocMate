@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocuments, saveDocument, deleteDocument } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
 import { getSelectedCountry } from '@/utils/countries';
+import { getDocumentStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import type { Document } from '@/utils/localdb';
@@ -44,8 +45,6 @@ const documentCategories = [
   'Vehicle',
   'Other'
 ];
-
-type DocumentStatus = 'active' | 'expiring' | 'expired';
 
 export function Documents() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -84,18 +83,6 @@ export function Documents() {
     }
   };
 
-  const getDocumentStatus = (expiryDate?: string): DocumentStatus => {
-    if (!expiryDate) return 'active';
-    
-    const now = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = differenceInDays(expiry, now);
-    
-    if (daysUntilExpiry < 0) return 'expired';
-    if (daysUntilExpiry <= 30) return 'expiring';
-    return 'active';
-  };
-
   const categorizeDocuments = () => {
     const documentsWithStatus = documents.map(doc => ({
       ...doc,
@@ -105,7 +92,8 @@ export function Documents() {
     return {
       active: documentsWithStatus.filter(doc => doc.status === 'active'),
       expiring: documentsWithStatus.filter(doc => doc.status === 'expiring'),
-      expired: documentsWithStatus.filter(doc => doc.status === 'expired')
+      expired: documentsWithStatus.filter(doc => doc.status === 'expired'),
+      urgent: documentsWithStatus.filter(doc => doc.status === 'urgent')
     };
   };
 
@@ -124,7 +112,10 @@ export function Documents() {
     }
 
     if (selectedStatus !== 'all') {
-      filtered = filtered.filter(doc => getDocumentStatus(doc.expiryDate) === selectedStatus);
+      filtered = filtered.filter(doc => {
+        const status = getDocumentStatus(doc.expiryDate);
+        return status === selectedStatus || (selectedStatus === 'expiring' && status === 'urgent');
+      });
     }
 
     setFilteredDocuments(filtered);
@@ -187,21 +178,17 @@ export function Documents() {
     }
   };
 
-  const isExpiringSoon = (expiryDate?: string) => {
-    if (!expiryDate) return false;
-    const expiry = new Date(expiryDate);
-    const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    return expiry <= thirtyDaysFromNow && expiry > now;
-  };
-
   const renderStatusModal = () => {
     const categorized = categorizeDocuments();
 
     return (
       <div className="space-y-4">
         <Tabs defaultValue="expiring" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="urgent" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Urgent ({categorized.urgent.length})
+            </TabsTrigger>
             <TabsTrigger value="expiring" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               Expiring ({categorized.expiring.length})
@@ -215,6 +202,26 @@ export function Documents() {
               Active ({categorized.active.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="urgent" className="space-y-2 max-h-64 overflow-y-auto">
+            {categorized.urgent.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No urgent documents
+              </p>
+            ) : (
+              categorized.urgent.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950 rounded-md">
+                  <div>
+                    <span className="text-sm font-medium">{doc.name}</span>
+                    <p className="text-xs text-muted-foreground">{doc.category}</p>
+                  </div>
+                  <Badge variant="destructive" className="text-xs">
+                    {doc.expiryDate ? differenceInDays(new Date(doc.expiryDate), new Date()) : 0} days
+                  </Badge>
+                </div>
+              ))
+            )}
+          </TabsContent>
 
           <TabsContent value="expiring" className="space-y-2 max-h-64 overflow-y-auto">
             {categorized.expiring.length === 0 ? (
@@ -458,7 +465,7 @@ export function Documents() {
               </>
             ) : (
               <>
-                {categorized.expiring.length > 0 && (
+                {(categorized.expiring.length > 0 || categorized.urgent.length > 0) && (
                   <Button
                     variant="outline"
                     className="justify-start h-auto p-3 text-left border-red-200 dark:border-red-800"
@@ -468,7 +475,7 @@ export function Documents() {
                       <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="font-medium text-sm text-red-800 dark:text-red-200">Renewal Required</p>
-                        <p className="text-xs text-red-700 dark:text-red-300">{categorized.expiring.length} expiring soon</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{categorized.expiring.length + categorized.urgent.length} expiring soon</p>
                       </div>
                     </div>
                   </Button>
@@ -521,7 +528,7 @@ export function Documents() {
       </Card>
 
       {/* Status Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedStatus('active')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Documents</CardTitle>
@@ -540,7 +547,18 @@ export function Documents() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{categorized.expiring.length}</div>
-            <p className="text-xs text-muted-foreground">Expires within 30 days</p>
+            <p className="text-xs text-muted-foreground">Needs attention</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedStatus('urgent')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{categorized.urgent.length}</div>
+            <p className="text-xs text-muted-foreground">Immediate action needed</p>
           </CardContent>
         </Card>
 
@@ -589,6 +607,7 @@ export function Documents() {
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expiring">Expiring</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
           </SelectContent>
         </Select>
@@ -657,6 +676,7 @@ export function Documents() {
                       <CardTitle className="text-lg">{document.name}</CardTitle>
                     </div>
                     <div className="flex items-center gap-1">
+                      {status === 'urgent' && <AlertCircle className="h-5 w-5 text-red-500" />}
                       {status === 'expiring' && <AlertCircle className="h-5 w-5 text-yellow-500" />}
                       {status === 'expired' && <XCircle className="h-5 w-5 text-red-500" />}
                       {status === 'active' && <CheckCircle className="h-5 w-5 text-green-500" />}
@@ -664,10 +684,8 @@ export function Documents() {
                   </div>
                   <div className="flex gap-2">
                     <Badge variant="secondary">{document.category}</Badge>
-                    <Badge 
-                      variant={status === 'expired' ? 'destructive' : status === 'expiring' ? 'secondary' : 'outline'}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    <Badge variant={getStatusBadgeVariant(status)}>
+                      {getStatusText(status)}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -676,7 +694,7 @@ export function Documents() {
                     {document.expiryDate && (
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className={status === 'expired' || status === 'expiring' ? 'text-red-600 font-medium' : ''}>
+                        <span className={status === 'expired' || status === 'urgent' || status === 'expiring' ? 'text-red-600 font-medium' : ''}>
                           Expires: {format(new Date(document.expiryDate), 'MMM d, yyyy')}
                         </span>
                       </div>
