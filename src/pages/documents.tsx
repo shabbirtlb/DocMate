@@ -28,14 +28,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { getDocuments, saveDocument, deleteDocument } from '@/utils/database';
+import { getDocuments, saveDocument, deleteDocument } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
 import { countries } from '@/utils/countries';
 import { getDocumentStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
 import { getExpiryThresholds, getSelectedCountry } from '@/utils/settings';
 import { toast } from 'sonner';
 import { format, differenceInDays, subDays } from 'date-fns';
-import type { Document } from '@/utils/database';
+import type { Document } from '@/utils/localdb';
 
 const documentCategories = [
   'Identity',
@@ -138,43 +138,29 @@ export function Documents() {
     setFilteredDocuments(filtered);
   };
 
-  const getNotificationInfo = () => {
+  const getNotificationInfo = async () => {
     if (!newDocument.expiryDate) return null;
 
-    const getThresholds = async () => {
-      try {
-        return await getExpiryThresholds();
-      } catch {
-        return {
-          documents: { expiringSoonDays: 30, urgentDays: 7 },
-          cards: { expiringSoonDays: 90, urgentDays: 30 },
-          subscriptions: { expiringSoonDays: 7, urgentDays: 3 }
-        };
-      }
-    };
-
-    const [thresholds, setThresholds] = useState(null);
-    
-    useEffect(() => {
-      getThresholds().then(setThresholds);
-    }, []);
-
-    if (!thresholds) return null;
-
-    const expiryDate = new Date(newDocument.expiryDate);
-    const notificationDays = newDocument.enableCustomNotification 
-      ? parseInt(newDocument.customNotificationDays) || thresholds.documents.expiringSoonDays
-      : thresholds.documents.expiringSoonDays;
-    
-    const notificationStartDate = subDays(expiryDate, notificationDays);
-    const urgentStartDate = subDays(expiryDate, thresholds.documents.urgentDays);
-    
-    return {
-      notificationStartDate,
-      urgentStartDate,
-      notificationDays,
-      urgentDays: thresholds.documents.urgentDays
-    };
+    try {
+      const thresholds = await getExpiryThresholds();
+      const expiryDate = new Date(newDocument.expiryDate);
+      const notificationDays = newDocument.enableCustomNotification 
+        ? parseInt(newDocument.customNotificationDays) || thresholds.documents.expiringSoonDays
+        : thresholds.documents.expiringSoonDays;
+      
+      const notificationStartDate = subDays(expiryDate, notificationDays);
+      const urgentStartDate = subDays(expiryDate, thresholds.documents.urgentDays);
+      
+      return {
+        notificationStartDate,
+        urgentStartDate,
+        notificationDays,
+        urgentDays: thresholds.documents.urgentDays
+      };
+    } catch (error) {
+      console.error('Error getting notification info:', error);
+      return null;
+    }
   };
 
   const handleAddDocument = async () => {
@@ -349,7 +335,6 @@ export function Documents() {
 
   const country = countries.find(c => c.code === selectedCountry) || countries[0];
   const categorized = categorizeDocuments();
-  const notificationInfo = getNotificationInfo();
 
   if (loading) {
     return (
@@ -432,72 +417,6 @@ export function Documents() {
                     onChange={(e) => setNewDocument(prev => ({ ...prev, expiryDate: e.target.value }))}
                   />
                 </div>
-
-                {/* Notification Settings */}
-                {newDocument.expiryDate && (
-                  <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <Bell className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <Label className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                        Notification Settings
-                      </Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="customNotification"
-                        checked={newDocument.enableCustomNotification}
-                        onCheckedChange={(checked) => 
-                          setNewDocument(prev => ({ ...prev, enableCustomNotification: checked }))
-                        }
-                      />
-                      <Label htmlFor="customNotification" className="text-sm">
-                        Custom notification timing
-                      </Label>
-                    </div>
-
-                    {newDocument.enableCustomNotification && (
-                      <div>
-                        <Label htmlFor="notificationDays" className="text-sm">
-                          Notify me (days before expiry)
-                        </Label>
-                        <Input
-                          id="notificationDays"
-                          type="number"
-                          min="1"
-                          max="365"
-                          value={newDocument.customNotificationDays}
-                          onChange={(e) => setNewDocument(prev => ({ 
-                            ...prev, 
-                            customNotificationDays: e.target.value 
-                          }))}
-                          placeholder="30"
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-
-                    {notificationInfo && (
-                      <div className="space-y-2 text-xs text-blue-700 dark:text-blue-300">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3" />
-                          <span>
-                            Notifications start: {format(notificationInfo.notificationStartDate, 'MMM d, yyyy')} 
-                            ({notificationInfo.notificationDays} days before)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-3 w-3" />
-                          <span>
-                            Urgent alerts start: {format(notificationInfo.urgentStartDate, 'MMM d, yyyy')} 
-                            ({notificationInfo.urgentDays} days before)
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 <div>
                   <Label htmlFor="tags">Tags (comma-separated)</Label>
                   <Input
@@ -585,7 +504,7 @@ export function Documents() {
                     <Plus className="h-4 w-4 text-orange-600 dark:text-orange-400 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-medium text-sm">Upload Files</p>
-                      <p className="text-xs text-muted-foreground">Secure cloud storage</p>
+                      <p className="text-xs text-muted-foreground">Secure local storage</p>
                     </div>
                   </div>
                 </Button>

@@ -22,7 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/components/auth/auth-provider';
-import { exportAllData, importAllData } from '@/utils/database';
+import { exportAllData, importAllData } from '@/utils/localdb';
 import { countries } from '@/utils/countries';
 import { requestNotificationPermission } from '@/utils/notifications';
 import { 
@@ -393,19 +393,19 @@ export function Settings() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="bg-green-50 dark:bg-green-950 p-4 rounded-md">
                   <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">
-                    Encrypted Cloud Storage
+                    Local Storage Only
                   </h4>
                   <p className="text-sm text-green-700 dark:text-green-300">
-                    All your data is encrypted before being stored in the cloud. Only you can decrypt it.
+                    All your data is stored locally on your device. Nothing is sent to external servers.
                   </p>
                 </div>
                 
                 <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-md">
                   <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                    No Sensitive Data
+                    Complete Privacy
                   </h4>
                   <p className="text-sm text-blue-700 dark:text-blue-300">
-                    We only store safe information like document names and expiry dates, never full numbers or passwords.
+                    Your documents, cards, and subscription data never leave your device.
                   </p>
                 </div>
               </div>

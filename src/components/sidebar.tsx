@@ -80,7 +80,7 @@ export function Sidebar() {
             </div>
             <div>
               <h1 className="text-xl font-bold">DocuMate+</h1>
-              <p className="text-sm text-muted-foreground">Secure & Cloud</p>
+              <p className="text-sm text-muted-foreground">Secure & Local</p>
             </div>
           </div>
 
@@ -156,7 +156,7 @@ export function Sidebar() {
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <p className="text-xs text-green-800 dark:text-green-200">
-                  Encrypted cloud storage
+                  All data stored locally
                 </p>
               </div>
             </div>

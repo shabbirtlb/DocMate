@@ -1,4 +1,4 @@
-import { getUserSettings, saveUserSettings } from './database';
+import { getSetting, saveSetting } from './localdb';
 
 export interface NotificationSettings {
   enabled: boolean;
@@ -50,39 +50,19 @@ export const DEFAULT_EXPIRY_THRESHOLDS: ExpiryThresholds = {
   }
 };
 
-let cachedSettings: any = null;
-
-async function getSettings(): Promise<any> {
-  if (cachedSettings) {
-    return cachedSettings;
-  }
-
-  try {
-    cachedSettings = await getUserSettings();
-    return cachedSettings;
-  } catch (error) {
-    console.error('Error loading settings from database:', error);
-    // Return defaults if database fails
-    return {
-      notifications: DEFAULT_NOTIFICATION_SETTINGS,
-      expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
-      country: 'IN',
-      theme: 'system'
-    };
-  }
-}
-
 export async function getNotificationSettings(): Promise<NotificationSettings> {
-  const settings = await getSettings();
-  return { ...DEFAULT_NOTIFICATION_SETTINGS, ...settings.notifications };
+  try {
+    const settings = await getSetting('notificationSettings', DEFAULT_NOTIFICATION_SETTINGS);
+    return { ...DEFAULT_NOTIFICATION_SETTINGS, ...settings };
+  } catch (error) {
+    console.error('Error loading notification settings:', error);
+    return DEFAULT_NOTIFICATION_SETTINGS;
+  }
 }
 
 export async function saveNotificationSettings(notificationSettings: NotificationSettings): Promise<void> {
   try {
-    const settings = await getSettings();
-    settings.notifications = notificationSettings;
-    await saveUserSettings(settings);
-    cachedSettings = settings;
+    await saveSetting('notificationSettings', notificationSettings);
   } catch (error) {
     console.error('Error saving notification settings:', error);
     throw error;
@@ -90,16 +70,18 @@ export async function saveNotificationSettings(notificationSettings: Notificatio
 }
 
 export async function getExpiryThresholds(): Promise<ExpiryThresholds> {
-  const settings = await getSettings();
-  return { ...DEFAULT_EXPIRY_THRESHOLDS, ...settings.expiryThresholds };
+  try {
+    const thresholds = await getSetting('expiryThresholds', DEFAULT_EXPIRY_THRESHOLDS);
+    return { ...DEFAULT_EXPIRY_THRESHOLDS, ...thresholds };
+  } catch (error) {
+    console.error('Error loading expiry thresholds:', error);
+    return DEFAULT_EXPIRY_THRESHOLDS;
+  }
 }
 
 export async function saveExpiryThresholds(expiryThresholds: ExpiryThresholds): Promise<void> {
   try {
-    const settings = await getSettings();
-    settings.expiryThresholds = expiryThresholds;
-    await saveUserSettings(settings);
-    cachedSettings = settings;
+    await saveSetting('expiryThresholds', expiryThresholds);
   } catch (error) {
     console.error('Error saving expiry thresholds:', error);
     throw error;
@@ -107,56 +89,51 @@ export async function saveExpiryThresholds(expiryThresholds: ExpiryThresholds): 
 }
 
 export async function getSelectedCountry(): Promise<string> {
-  const settings = await getSettings();
-  return settings.country || 'IN';
+  try {
+    return await getSetting('selectedCountry', 'IN');
+  } catch (error) {
+    console.error('Error loading selected country:', error);
+    return 'IN';
+  }
 }
 
 export async function setSelectedCountry(countryCode: string): Promise<void> {
   try {
-    const settings = await getSettings();
-    settings.country = countryCode;
-    await saveUserSettings(settings);
-    cachedSettings = settings;
+    await saveSetting('selectedCountry', countryCode);
   } catch (error) {
-    console.error('Error saving country setting:', error);
+    console.error('Error saving selected country:', error);
     throw error;
   }
 }
 
 export async function getTheme(): Promise<string> {
-  const settings = await getSettings();
-  return settings.theme || 'system';
+  try {
+    return await getSetting('theme', 'system');
+  } catch (error) {
+    console.error('Error loading theme:', error);
+    return 'system';
+  }
 }
 
 export async function setTheme(theme: string): Promise<void> {
   try {
-    const settings = await getSettings();
-    settings.theme = theme;
-    await saveUserSettings(settings);
-    cachedSettings = settings;
+    await saveSetting('theme', theme);
   } catch (error) {
-    console.error('Error saving theme setting:', error);
+    console.error('Error saving theme:', error);
     throw error;
   }
 }
 
 export async function resetToDefaults(): Promise<void> {
   try {
-    const defaultSettings = {
-      notifications: DEFAULT_NOTIFICATION_SETTINGS,
-      expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
-      country: 'IN',
-      theme: 'system'
-    };
-    await saveUserSettings(defaultSettings);
-    cachedSettings = defaultSettings;
+    await Promise.all([
+      saveSetting('notificationSettings', DEFAULT_NOTIFICATION_SETTINGS),
+      saveSetting('expiryThresholds', DEFAULT_EXPIRY_THRESHOLDS),
+      saveSetting('selectedCountry', 'IN'),
+      saveSetting('theme', 'system')
+    ]);
   } catch (error) {
     console.error('Error resetting settings:', error);
     throw error;
   }
-}
-
-// Clear cache when needed
-export function clearSettingsCache(): void {
-  cachedSettings = null;
 }
