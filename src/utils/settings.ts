@@ -25,7 +25,7 @@ export interface ExpiryThresholds {
   };
 }
 
-const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: false,
   documentExpiryDays: 30,
   cardExpiryDays: 90,
@@ -35,7 +35,7 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   urgentOnly: false
 };
 
-const DEFAULT_EXPIRY_THRESHOLDS: ExpiryThresholds = {
+export const DEFAULT_EXPIRY_THRESHOLDS: ExpiryThresholds = {
   documents: {
     expiringSoonDays: 30,
     urgentDays: 7
