@@ -11,8 +11,7 @@ import {
   Trash2,
   User,
   AlertTriangle,
-  Settings2,
-  Loader2
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,67 +21,30 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/components/auth/auth-provider';
-import { exportAllData, importAllData } from '@/utils/database';
-import { countries } from '@/utils/countries';
+import { exportAllData, importAllData } from '@/utils/localdb';
+import { countries, getSelectedCountry, setSelectedCountry } from '@/utils/countries';
 import { requestNotificationPermission } from '@/utils/notifications';
-import { 
-  getNotificationSettings, 
-  getExpiryThresholds,
-  getSelectedCountry,
-  setSelectedCountry,
-  DEFAULT_NOTIFICATION_SETTINGS,
-  DEFAULT_EXPIRY_THRESHOLDS,
-  type NotificationSettings, 
-  type ExpiryThresholds 
-} from '@/utils/settings';
+import { getNotificationSettings, getExpiryThresholds, type NotificationSettings, type ExpiryThresholds } from '@/utils/settings';
 import { NotificationSettingsComponent } from '@/components/settings/notification-settings';
 import { toast } from 'sonner';
 
 export function Settings() {
   const { theme, setTheme } = useTheme();
   const { user, deleteAccount } = useAuth();
-  const [selectedCountry, setSelectedCountryState] = useState('IN');
+  const [selectedCountry, setSelectedCountryState] = useState(getSelectedCountry().code);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
-  const [expiryThresholds, setExpiryThresholds] = useState<ExpiryThresholds>(DEFAULT_EXPIRY_THRESHOLDS);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(getNotificationSettings());
+  const [expiryThresholds, setExpiryThresholds] = useState<ExpiryThresholds>(getExpiryThresholds());
 
   useEffect(() => {
     setNotificationPermission(Notification.permission);
-    
-    // Load settings asynchronously
-    const loadSettings = async () => {
-      try {
-        const [notificationSettingsData, expiryThresholdsData, countryData] = await Promise.all([
-          getNotificationSettings(),
-          getExpiryThresholds(),
-          getSelectedCountry()
-        ]);
-        setNotificationSettings(notificationSettingsData);
-        setExpiryThresholds(expiryThresholdsData);
-        setSelectedCountryState(countryData);
-      } catch (error) {
-        console.error('Error loading settings:', error);
-        toast.error('Failed to load some settings');
-      } finally {
-        setIsLoadingSettings(false);
-      }
-    };
-
-    loadSettings();
   }, []);
 
-  const handleCountryChange = async (countryCode: string) => {
-    try {
-      await setSelectedCountry(countryCode);
-      setSelectedCountryState(countryCode);
-      toast.success('Country updated successfully');
-    } catch (error) {
-      console.error('Error updating country:', error);
-      toast.error('Failed to update country');
-    }
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountry(countryCode);
+    setSelectedCountryState(countryCode);
+    toast.success('Country updated successfully');
   };
 
   const handleExportData = async () => {
@@ -138,18 +100,16 @@ export function Settings() {
   };
 
   const handleDeleteAccount = async () => {
-    setIsDeletingAccount(true);
     try {
       const success = await deleteAccount();
-      if (!success) {
+      if (success) {
+        toast.success('Account deleted successfully');
+      } else {
         toast.error('Failed to delete account');
-        setIsDeletingAccount(false);
       }
-      // If successful, the page will reload automatically
     } catch (error) {
       console.error('Error deleting account:', error);
       toast.error('Failed to delete account');
-      setIsDeletingAccount(false);
     }
   };
 
@@ -313,23 +273,12 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="notifications">
-          {isLoadingSettings ? (
-            <Card>
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Loading settings...</span>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <NotificationSettingsComponent
-              settings={notificationSettings}
-              thresholds={expiryThresholds}
-              onSettingsChange={setNotificationSettings}
-              onThresholdsChange={setExpiryThresholds}
-            />
-          )}
+          <NotificationSettingsComponent
+            settings={notificationSettings}
+            thresholds={expiryThresholds}
+            onSettingsChange={setNotificationSettings}
+            onThresholdsChange={setExpiryThresholds}
+          />
         </TabsContent>
 
         <TabsContent value="data" className="space-y-6">
@@ -393,10 +342,10 @@ export function Settings() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="bg-green-50 dark:bg-green-950 p-4 rounded-md">
                   <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">
-                    Encrypted Cloud Storage
+                    Local Storage Only
                   </h4>
                   <p className="text-sm text-green-700 dark:text-green-300">
-                    All your data is encrypted before being stored in the cloud. Only you can decrypt it.
+                    All your data is stored locally in your browser. Nothing is sent to external servers.
                   </p>
                 </div>
                 
@@ -431,18 +380,9 @@ export function Settings() {
                   </p>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" disabled={isDeletingAccount}>
-                        {isDeletingAccount ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Deleting Account...
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Account
-                          </>
-                        )}
+                      <Button variant="destructive">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Account
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -457,20 +397,9 @@ export function Settings() {
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={handleDeleteAccount} 
-                          className="bg-destructive text-destructive-foreground"
-                          disabled={isDeletingAccount}
-                        >
-                          {isDeletingAccount ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            'Delete Account'
-                          )}
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground">
+                          Delete Account
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
