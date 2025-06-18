@@ -79,6 +79,12 @@ export function Subscriptions() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [notificationInfo, setNotificationInfo] = useState<{
+    notificationStartDate: Date;
+    urgentStartDate: Date;
+    notificationDays: number;
+    urgentDays: number;
+  } | null>(null);
   const [newSubscription, setNewSubscription] = useState({
     name: '',
     planName: '',
@@ -99,6 +105,38 @@ export function Subscriptions() {
   useEffect(() => {
     filterSubscriptions();
   }, [subscriptions, searchQuery, selectedCycle, selectedStatus]);
+
+  useEffect(() => {
+    const updateNotificationInfo = async () => {
+      if (!newSubscription.renewalDate) {
+        setNotificationInfo(null);
+        return;
+      }
+
+      try {
+        const thresholds = await getExpiryThresholds();
+        const renewalDate = new Date(newSubscription.renewalDate);
+        const notificationDays = newSubscription.enableCustomNotification 
+          ? parseInt(newSubscription.customNotificationDays) || thresholds.subscriptions.expiringSoonDays
+          : thresholds.subscriptions.expiringSoonDays;
+        
+        const notificationStartDate = subDays(renewalDate, notificationDays);
+        const urgentStartDate = subDays(renewalDate, thresholds.subscriptions.urgentDays);
+        
+        setNotificationInfo({
+          notificationStartDate,
+          urgentStartDate,
+          notificationDays,
+          urgentDays: thresholds.subscriptions.urgentDays
+        });
+      } catch (error) {
+        console.error('Error getting notification info:', error);
+        setNotificationInfo(null);
+      }
+    };
+
+    updateNotificationInfo();
+  }, [newSubscription.renewalDate, newSubscription.enableCustomNotification, newSubscription.customNotificationDays]);
 
   const loadSubscriptions = async () => {
     try {
@@ -162,26 +200,6 @@ export function Subscriptions() {
       default:
         return addMonths(date, 1).toISOString().split('T')[0];
     }
-  };
-
-  const getNotificationInfo = () => {
-    if (!newSubscription.renewalDate) return null;
-
-    const thresholds = getExpiryThresholds();
-    const renewalDate = new Date(newSubscription.renewalDate);
-    const notificationDays = newSubscription.enableCustomNotification 
-      ? parseInt(newSubscription.customNotificationDays) || thresholds.subscriptions.expiringSoonDays
-      : thresholds.subscriptions.expiringSoonDays;
-    
-    const notificationStartDate = subDays(renewalDate, notificationDays);
-    const urgentStartDate = subDays(renewalDate, thresholds.subscriptions.urgentDays);
-    
-    return {
-      notificationStartDate,
-      urgentStartDate,
-      notificationDays,
-      urgentDays: thresholds.subscriptions.urgentDays
-    };
   };
 
   const handleAddSubscription = async () => {
@@ -362,7 +380,6 @@ export function Subscriptions() {
   };
 
   const categorized = categorizeSubscriptions();
-  const notificationInfo = getNotificationInfo();
 
   if (loading) {
     return (

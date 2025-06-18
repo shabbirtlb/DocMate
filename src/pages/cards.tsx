@@ -61,6 +61,12 @@ export function Cards() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [notificationInfo, setNotificationInfo] = useState<{
+    notificationStartDate: Date;
+    urgentStartDate: Date;
+    notificationDays: number;
+    urgentDays: number;
+  } | null>(null);
   const [newCard, setNewCard] = useState({
     name: '',
     lastFourDigits: '',
@@ -79,6 +85,38 @@ export function Cards() {
   useEffect(() => {
     filterCards();
   }, [cards, searchQuery, selectedType, selectedStatus]);
+
+  useEffect(() => {
+    const updateNotificationInfo = async () => {
+      if (!newCard.expiryDate) {
+        setNotificationInfo(null);
+        return;
+      }
+
+      try {
+        const thresholds = await getExpiryThresholds();
+        const expiryDate = new Date(newCard.expiryDate);
+        const notificationDays = newCard.enableCustomNotification 
+          ? parseInt(newCard.customNotificationDays) || thresholds.cards.expiringSoonDays
+          : thresholds.cards.expiringSoonDays;
+        
+        const notificationStartDate = subDays(expiryDate, notificationDays);
+        const urgentStartDate = subDays(expiryDate, thresholds.cards.urgentDays);
+        
+        setNotificationInfo({
+          notificationStartDate,
+          urgentStartDate,
+          notificationDays,
+          urgentDays: thresholds.cards.urgentDays
+        });
+      } catch (error) {
+        console.error('Error getting notification info:', error);
+        setNotificationInfo(null);
+      }
+    };
+
+    updateNotificationInfo();
+  }, [newCard.expiryDate, newCard.enableCustomNotification, newCard.customNotificationDays]);
 
   const loadCards = async () => {
     try {
@@ -129,26 +167,6 @@ export function Cards() {
     }
 
     setFilteredCards(filtered);
-  };
-
-  const getNotificationInfo = () => {
-    if (!newCard.expiryDate) return null;
-
-    const thresholds = getExpiryThresholds();
-    const expiryDate = new Date(newCard.expiryDate);
-    const notificationDays = newCard.enableCustomNotification 
-      ? parseInt(newCard.customNotificationDays) || thresholds.cards.expiringSoonDays
-      : thresholds.cards.expiringSoonDays;
-    
-    const notificationStartDate = subDays(expiryDate, notificationDays);
-    const urgentStartDate = subDays(expiryDate, thresholds.cards.urgentDays);
-    
-    return {
-      notificationStartDate,
-      urgentStartDate,
-      notificationDays,
-      urgentDays: thresholds.cards.urgentDays
-    };
   };
 
   const handleAddCard = async () => {
@@ -320,7 +338,6 @@ export function Cards() {
   };
 
   const categorized = categorizeCards();
-  const notificationInfo = getNotificationInfo();
 
   if (loading) {
     return (
