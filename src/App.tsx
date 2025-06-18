@@ -60,7 +60,7 @@ function AppContent() {
       <NotificationManager />
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 lg:ml-12">
+        <main className="flex-1 lg:ml-18">
           <div className="container mx-auto p-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
