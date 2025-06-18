@@ -48,6 +48,7 @@ export function Settings() {
   const [expiryThresholds, setExpiryThresholds] = useState<ExpiryThresholds>(DEFAULT_EXPIRY_THRESHOLDS);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   useEffect(() => {
     setNotificationPermission(Notification.permission);
@@ -127,6 +128,7 @@ export function Settings() {
   };
 
   const handleRequestNotifications = async () => {
+    setIsRequestingPermission(true);
     try {
       const permission = await requestNotificationPermission();
       setNotificationPermission(permission);
@@ -138,10 +140,14 @@ export function Settings() {
       } else if (permission === 'denied') {
         toast.error('Notifications were denied. You can enable them in your browser settings.');
         clearScheduledNotifications();
+      } else {
+        toast.warning('Notification permission is still pending. Please check your browser.');
       }
     } catch (error) {
       console.error('Error requesting notifications:', error);
       toast.error('Failed to request notification permission');
+    } finally {
+      setIsRequestingPermission(false);
     }
   };
 
@@ -173,6 +179,28 @@ export function Settings() {
       }
     } catch (error) {
       console.error('Error updating notification schedule:', error);
+    }
+  };
+
+  const getPermissionStatusText = () => {
+    switch (notificationPermission) {
+      case 'granted':
+        return 'Enabled';
+      case 'denied':
+        return 'Denied';
+      default:
+        return 'Not requested';
+    }
+  };
+
+  const getPermissionStatusColor = () => {
+    switch (notificationPermission) {
+      case 'granted':
+        return 'text-green-600 dark:text-green-400';
+      case 'denied':
+        return 'text-red-600 dark:text-red-400';
+      default:
+        return 'text-yellow-600 dark:text-yellow-400';
     }
   };
 
@@ -310,19 +338,25 @@ export function Settings() {
                       Browser permission for notifications
                     </p>
                   </div>
-                  <div>
-                    {notificationPermission === 'granted' ? (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-sm">Enabled</span>
-                      </div>
-                    ) : (
+                  <div className="flex items-center gap-2">
+                    <div className={`text-sm font-medium ${getPermissionStatusColor()}`}>
+                      {getPermissionStatusText()}
+                    </div>
+                    {notificationPermission !== 'granted' && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={handleRequestNotifications}
+                        disabled={isRequestingPermission}
                       >
-                        Enable
+                        {isRequestingPermission ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Requesting...
+                          </>
+                        ) : (
+                          'Enable'
+                        )}
                       </Button>
                     )}
                   </div>

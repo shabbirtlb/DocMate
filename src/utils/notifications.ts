@@ -11,22 +11,25 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     return 'denied';
   }
 
+  // If already granted, return immediately
   if (Notification.permission === 'granted') {
     return 'granted';
   }
 
-  if (Notification.permission !== 'denied') {
-    try {
-      const permission = await Notification.requestPermission();
-      console.log('Notification permission:', permission);
-      return permission;
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-      return 'denied';
-    }
+  // If already denied, return immediately
+  if (Notification.permission === 'denied') {
+    return 'denied';
   }
 
-  return Notification.permission;
+  // Request permission - this will show the browser popup
+  try {
+    const permission = await Notification.requestPermission();
+    console.log('Notification permission result:', permission);
+    return permission;
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return 'denied';
+  }
 }
 
 export function showNotification(title: string, options?: NotificationOptions): void {
