@@ -593,7 +593,7 @@ export function Dashboard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {!hasAnyData ? (
               <>
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-3.75 p-4" asChild>
                   <Link to="/documents">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-md">
