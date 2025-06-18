@@ -593,7 +593,7 @@ export function Dashboard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {!hasAnyData ? (
               <>
-                <Button variant="outline" className="justify-start h-3.75 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/documents">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-md">
@@ -606,7 +606,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3.75 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/cards">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-green-50 dark:bg-green-950 rounded-md">
@@ -619,7 +619,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3.75 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/subscriptions">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-purple-50 dark:bg-purple-950 rounded-md">
@@ -646,7 +646,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 )}
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/documents">
                     <div className="flex items-center gap-3">
                       <Plus className="h-4 w-4" />
@@ -657,7 +657,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/cards">
                     <div className="flex items-center gap-3">
                       <Plus className="h-4 w-4" />
@@ -668,7 +668,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/cards">
                     <div className="flex items-center gap-3">
                       <Plus className="h-4 w-4" />
@@ -679,7 +679,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 </Button>
-                <Button variant="outline" className="justify-start h-3 p-4" asChild>
+                <Button variant="outline" className="justify-start h-4.2 p-4" asChild>
                   <Link to="/settings">
                     <div className="flex items-center gap-3">
                       <Zap className="h-4 w-4" />
