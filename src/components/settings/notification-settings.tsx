@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Bell, Clock, Calendar, AlertTriangle, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -26,15 +26,6 @@ export function NotificationSettingsComponent({
 }: NotificationSettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings);
   const [localThresholds, setLocalThresholds] = useState(thresholds);
-
-  // Update local state when props change
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
-
-  useEffect(() => {
-    setLocalThresholds(thresholds);
-  }, [thresholds]);
 
   const handleSave = () => {
     saveNotificationSettings(localSettings);
