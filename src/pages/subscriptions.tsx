@@ -28,6 +28,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSubscriptions, saveSubscription, deleteSubscription } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
+import { getSubscriptionStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
 import { toast } from 'sonner';
 import { format, addMonths, addYears, addWeeks, differenceInDays } from 'date-fns';
 import type { Subscription } from '@/utils/localdb';
@@ -65,8 +66,6 @@ const currencies = [
   { code: 'CAD', symbol: 'C$' },
   { code: 'AUD', symbol: 'A$' }
 ];
-
-type SubscriptionStatus = 'active' | 'expiring' | 'expired';
 
 export function Subscriptions() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -108,16 +107,6 @@ export function Subscriptions() {
     }
   };
 
-  const getSubscriptionStatus = (renewalDate: string): SubscriptionStatus => {
-    const now = new Date();
-    const renewal = new Date(renewalDate);
-    const daysUntilRenewal = differenceInDays(renewal, now);
-    
-    if (daysUntilRenewal < 0) return 'expired';
-    if (daysUntilRenewal <= 7) return 'expiring'; // Subscriptions renew more frequently
-    return 'active';
-  };
-
   const categorizeSubscriptions = () => {
     const subscriptionsWithStatus = subscriptions.map(sub => ({
       ...sub,
@@ -127,6 +116,7 @@ export function Subscriptions() {
     return {
       active: subscriptionsWithStatus.filter(sub => sub.status === 'active'),
       expiring: subscriptionsWithStatus.filter(sub => sub.status === 'expiring'),
+      urgent: subscriptionsWithStatus.filter(sub => sub.status === 'urgent'),
       expired: subscriptionsWithStatus.filter(sub => sub.status === 'expired')
     };
   };
@@ -146,7 +136,10 @@ export function Subscriptions() {
     }
 
     if (selectedStatus !== 'all') {
-      filtered = filtered.filter(sub => getSubscriptionStatus(sub.renewalDate) === selectedStatus);
+      filtered = filtered.filter(sub => {
+        const status = getSubscriptionStatus(sub.renewalDate);
+        return status === selectedStatus || (selectedStatus === 'expiring' && status === 'urgent');
+      });
     }
 
     setFilteredSubscriptions(filtered);
@@ -217,13 +210,6 @@ export function Subscriptions() {
     }
   };
 
-  const isRenewingSoon = (renewalDate: string) => {
-    const renewal = new Date(renewalDate);
-    const now = new Date();
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return renewal <= sevenDaysFromNow && renewal > now;
-  };
-
   const getTotalMonthlyCost = () => {
     return subscriptions.reduce((total, sub) => {
       if (!sub.cost) return total;
@@ -244,8 +230,12 @@ export function Subscriptions() {
 
     return (
       <div className="space-y-4">
-        <Tabs defaultValue="expiring" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="urgent" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="urgent" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Urgent ({categorized.urgent.length})
+            </TabsTrigger>
             <TabsTrigger value="expiring" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               Expiring ({categorized.expiring.length})
@@ -259,6 +249,26 @@ export function Subscriptions() {
               Active ({categorized.active.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="urgent" className="space-y-2 max-h-64 overflow-y-auto">
+            {categorized.urgent.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No urgent subscriptions
+              </p>
+            ) : (
+              categorized.urgent.map((sub) => (
+                <div key={sub.id} className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950 rounded-md">
+                  <div>
+                    <span className="text-sm font-medium">{sub.name}</span>
+                    <p className="text-xs text-muted-foreground">{sub.planName} • {sub.billingCycle}</p>
+                  </div>
+                  <Badge variant="destructive" className="text-xs">
+                    {differenceInDays(new Date(sub.renewalDate), new Date())} days
+                  </Badge>
+                </div>
+              ))
+            )}
+          </TabsContent>
 
           <TabsContent value="expiring" className="space-y-2 max-h-64 overflow-y-auto">
             {categorized.expiring.length === 0 ? (
@@ -574,7 +584,7 @@ export function Subscriptions() {
               </>
             ) : (
               <>
-                {categorized.expiring.length > 0 && (
+                {(categorized.expiring.length > 0 || categorized.urgent.length > 0) && (
                   <Button
                     variant="outline"
                     className="justify-start h-auto p-3 text-left border-red-200 dark:border-red-800"
@@ -584,7 +594,7 @@ export function Subscriptions() {
                       <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="font-medium text-sm text-red-800 dark:text-red-200">Renewals Due</p>
-                        <p className="text-xs text-red-700 dark:text-red-300">{categorized.expiring.length} renewing soon</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{categorized.expiring.length + categorized.urgent.length} renewing soon</p>
                       </div>
                     </div>
                   </Button>
@@ -637,7 +647,7 @@ export function Subscriptions() {
       </Card>
 
       {/* Status Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedStatus('active')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
@@ -656,7 +666,18 @@ export function Subscriptions() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{categorized.expiring.length}</div>
-            <p className="text-xs text-muted-foreground">Renews within 7 days</p>
+            <p className="text-xs text-muted-foreground">Needs attention</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedStatus('urgent')}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{categorized.urgent.length}</div>
+            <p className="text-xs text-muted-foreground">Immediate action needed</p>
           </CardContent>
         </Card>
 
@@ -705,6 +726,7 @@ export function Subscriptions() {
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expiring">Expiring</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
           </SelectContent>
         </Select>
@@ -742,6 +764,7 @@ export function Subscriptions() {
                       <p className="text-sm text-muted-foreground">{subscription.planName}</p>
                     </div>
                     <div className="flex items-center gap-1">
+                      {status === 'urgent' && <AlertCircle className="h-5 w-5 text-red-500" />}
                       {status === 'expiring' && <AlertCircle className="h-5 w-5 text-yellow-500" />}
                       {status === 'expired' && <XCircle className="h-5 w-5 text-red-500" />}
                       {status === 'active' && <CheckCircle className="h-5 w-5 text-green-500" />}
@@ -756,10 +779,8 @@ export function Subscriptions() {
                     <Badge variant="outline">
                       {subscription.billingCycle.charAt(0).toUpperCase() + subscription.billingCycle.slice(1)}
                     </Badge>
-                    <Badge 
-                      variant={status === 'expired' ? 'destructive' : status === 'expiring' ? 'secondary' : 'outline'}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    <Badge variant={getStatusBadgeVariant(status)}>
+                      {getStatusText(status)}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -767,7 +788,7 @@ export function Subscriptions() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className={status === 'expired' || status === 'expiring' ? 'text-red-600 font-medium' : ''}>
+                      <span className={status === 'expired' || status === 'urgent' || status === 'expiring' ? 'text-red-600 font-medium' : ''}>
                         Renews: {format(new Date(subscription.renewalDate), 'MMM d, yyyy')}
                       </span>
                     </div>

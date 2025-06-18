@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocuments, getCards, getSubscriptions } from '@/utils/localdb';
 import type { Document, Card as CardType, Subscription } from '@/utils/localdb';
+import { getDocumentStatus, getCardStatus, getSubscriptionStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
 import { format, isAfter, isBefore, addDays, differenceInDays } from 'date-fns';
 
 type ExpiringItem = {
@@ -36,6 +37,7 @@ type ExpiringItem = {
   type: 'document' | 'card' | 'subscription';
   expiryDate: string;
   daysUntilExpiry: number;
+  status: 'active' | 'expiring' | 'urgent' | 'expired';
   // Document specific
   category?: string;
   tags?: string[];
@@ -52,8 +54,6 @@ type ExpiringItem = {
   cost?: number;
   currency?: string;
 };
-
-type ItemStatus = 'active' | 'expiring' | 'expired';
 
 export function Dashboard() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -87,16 +87,6 @@ export function Dashboard() {
     }
   };
 
-  const getItemStatus = (expiryDate: string): ItemStatus => {
-    const now = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = differenceInDays(expiry, now);
-    
-    if (daysUntilExpiry < 0) return 'expired';
-    if (daysUntilExpiry <= 30) return 'expiring';
-    return 'active';
-  };
-
   const categorizeItems = (type: 'documents' | 'cards' | 'subscriptions') => {
     let items: any[] = [];
     
@@ -104,82 +94,91 @@ export function Dashboard() {
       items = documents.filter(doc => doc.expiryDate).map(doc => ({
         ...doc,
         expiryDate: doc.expiryDate!,
-        status: getItemStatus(doc.expiryDate!)
+        status: getDocumentStatus(doc.expiryDate!)
       }));
     } else if (type === 'cards') {
       items = cards.map(card => ({
         ...card,
-        status: getItemStatus(card.expiryDate)
+        status: getCardStatus(card.expiryDate)
       }));
     } else {
       items = subscriptions.map(sub => ({
         ...sub,
         expiryDate: sub.renewalDate,
-        status: getItemStatus(sub.renewalDate)
+        status: getSubscriptionStatus(sub.renewalDate)
       }));
     }
 
     return {
       active: items.filter(item => item.status === 'active'),
       expiring: items.filter(item => item.status === 'expiring'),
+      urgent: items.filter(item => item.status === 'urgent'),
       expired: items.filter(item => item.status === 'expired')
     };
   };
 
   const getExpiringItems = (): ExpiringItem[] => {
     const now = new Date();
-    const thirtyDaysFromNow = addDays(now, 30);
     
     const expiringDocs = documents
       .filter(doc => doc.expiryDate)
-      .map(doc => ({
-        id: doc.id,
-        name: doc.name,
-        type: 'document' as const,
-        expiryDate: doc.expiryDate!,
-        daysUntilExpiry: differenceInDays(new Date(doc.expiryDate!), now),
-        category: doc.category,
-        tags: doc.tags
-      }))
+      .map(doc => {
+        const status = getDocumentStatus(doc.expiryDate!);
+        return {
+          id: doc.id,
+          name: doc.name,
+          type: 'document' as const,
+          expiryDate: doc.expiryDate!,
+          daysUntilExpiry: differenceInDays(new Date(doc.expiryDate!), now),
+          status,
+          category: doc.category,
+          tags: doc.tags
+        };
+      })
       .filter(item => 
-        item.daysUntilExpiry >= 0 && 
-        item.daysUntilExpiry <= 30
+        item.status === 'expiring' || item.status === 'urgent'
       );
     
     const expiringCards = cards
-      .map(card => ({
-        id: card.id,
-        name: card.name,
-        type: 'card' as const,
-        expiryDate: card.expiryDate,
-        daysUntilExpiry: differenceInDays(new Date(card.expiryDate), now),
-        lastFourDigits: card.lastFourDigits,
-        bank: card.bank,
-        cardType: card.type,
-        supportContact: card.supportContact
-      }))
+      .map(card => {
+        const status = getCardStatus(card.expiryDate);
+        return {
+          id: card.id,
+          name: card.name,
+          type: 'card' as const,
+          expiryDate: card.expiryDate,
+          daysUntilExpiry: differenceInDays(new Date(card.expiryDate), now),
+          status,
+          lastFourDigits: card.lastFourDigits,
+          bank: card.bank,
+          cardType: card.type,
+          supportContact: card.supportContact
+        };
+      })
       .filter(item => 
-        item.daysUntilExpiry >= 0 && 
-        item.daysUntilExpiry <= 30
+        item.status === 'expiring' || item.status === 'urgent'
       );
     
     const expiringSubs = subscriptions
-      .map(sub => ({
-        id: sub.id,
-        name: sub.name,
-        type: 'subscription' as const,
-        expiryDate: sub.renewalDate,
-        daysUntilExpiry: differenceInDays(new Date(sub.renewalDate), now),
-        planName: sub.planName,
-        billingCycle: sub.billingCycle,
-        autoRenewal: sub.autoRenewal,
-        managementUrl: sub.managementUrl,
-        cost: sub.cost,
-        currency: sub.currency
-      }))
+      .map(sub => {
+        const status = getSubscriptionStatus(sub.renewalDate);
+        return {
+          id: sub.id,
+          name: sub.name,
+          type: 'subscription' as const,
+          expiryDate: sub.renewalDate,
+          daysUntilExpiry: differenceInDays(new Date(sub.renewalDate), now),
+          status,
+          planName: sub.planName,
+          billingCycle: sub.billingCycle,
+          autoRenewal: sub.autoRenewal,
+          managementUrl: sub.managementUrl,
+          cost: sub.cost,
+          currency: sub.currency
+        };
+      })
       .filter(item => 
-        item.daysUntilExpiry >= 0 && 
-        item.daysUntilExpiry <= 30
+        item.status === 'expiring' || item.status === 'urgent'
       );
 
     return [...expiringDocs, ...expiringCards, ...expiringSubs]
@@ -289,8 +288,12 @@ export function Dashboard() {
 
     return (
       <div className="space-y-4">
-        <Tabs defaultValue="expiring" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="urgent" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="urgent" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Urgent ({categorized.urgent.length})
+            </TabsTrigger>
             <TabsTrigger value="expiring" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               Expiring ({categorized.expiring.length})
@@ -304,6 +307,23 @@ export function Dashboard() {
               Active ({categorized.active.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="urgent" className="space-y-2 max-h-64 overflow-y-auto">
+            {categorized.urgent.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No urgent {statusModalType}
+              </p>
+            ) : (
+              categorized.urgent.map((item: any) => (
+                <div key={item.id} className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950 rounded-md">
+                  <span className="text-sm font-medium">{item.name}</span>
+                  <Badge variant="destructive" className="text-xs">
+                    {differenceInDays(new Date(item.expiryDate), new Date())} days
+                  </Badge>
+                </div>
+              ))
+            )}
+          </TabsContent>
 
           <TabsContent value="expiring" className="space-y-2 max-h-64 overflow-y-auto">
             {categorized.expiring.length === 0 ? (
@@ -376,8 +396,8 @@ export function Dashboard() {
   const renderItemDetails = () => {
     if (!selectedItem) return null;
 
-    const isUrgent = selectedItem.daysUntilExpiry <= 7;
-    const isExpired = selectedItem.daysUntilExpiry < 0;
+    const isUrgent = selectedItem.status === 'urgent';
+    const isExpired = selectedItem.status === 'expired';
 
     return (
       <div className="space-y-4">
@@ -392,11 +412,9 @@ export function Dashboard() {
         <div className="grid gap-3">
           <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
             <span className="text-sm font-medium">Status</span>
-            <Badge 
-              variant={isExpired ? "destructive" : isUrgent ? "destructive" : "secondary"}
-              className="text-xs"
-            >
-              {isExpired ? 'Expired' : `${selectedItem.daysUntilExpiry} days left`}
+            <Badge variant={getStatusBadgeVariant(selectedItem.status)} className="text-xs">
+              {getStatusText(selectedItem.status)}
+              {!isExpired && ` (${selectedItem.daysUntilExpiry} days)`}
             </Badge>
           </div>
 
@@ -696,13 +714,18 @@ export function Dashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               {stat.statusCounts && (
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   <Badge variant="outline" className="text-xs">
                     {stat.statusCounts.active.length} Active
                   </Badge>
                   {stat.statusCounts.expiring.length > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       {stat.statusCounts.expiring.length} Expiring
+                    </Badge>
+                  )}
+                  {stat.statusCounts.urgent.length > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {stat.statusCounts.urgent.length} Urgent
                     </Badge>
                   )}
                   {stat.statusCounts.expired.length > 0 && (
@@ -819,19 +842,22 @@ export function Dashboard() {
                     All good!
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    No items expiring in the next 30 days
+                    No items expiring soon
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {expiringItems.slice(0, 5).map((item) => {
-                    const isUrgent = item.daysUntilExpiry <= 7;
-                    const isExpired = item.daysUntilExpiry < 0;
+                    const isUrgent = item.status === 'urgent';
+                    const isExpired = item.status === 'expired';
                     
                     return (
                       <div 
                         key={`${item.type}-${item.id}`} 
-                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-muted/70 transition-colors ${isUrgent ? 'bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900' : 'bg-yellow-50 dark:bg-yellow-950 hover:bg-yellow-100 dark:hover:bg-yellow-900'}`}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-muted/70 transition-colors ${
+                          isUrgent ? 'bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900' : 
+                          'bg-yellow-50 dark:bg-yellow-950 hover:bg-yellow-100 dark:hover:bg-yellow-900'
+                        }`}
                         onClick={() => handleItemClick(item)}
                       >
                         <div className="flex items-center gap-2">
@@ -843,11 +869,9 @@ export function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <Badge 
-                          variant={isExpired ? "destructive" : isUrgent ? "destructive" : "secondary"}
-                          className="text-xs"
-                        >
-                          {isExpired ? 'Expired' : `${item.daysUntilExpiry} days`}
+                        <Badge variant={getStatusBadgeVariant(item.status)} className="text-xs">
+                          {getStatusText(item.status)}
+                          {!isExpired && ` (${item.daysUntilExpiry} days)`}
                         </Badge>
                       </div>
                     );
