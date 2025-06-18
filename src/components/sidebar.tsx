@@ -10,7 +10,8 @@ import {
   X,
   Shield,
   LogOut,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -28,6 +29,7 @@ const navigation = [
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
   const { user, signOut } = useAuth();
 
@@ -38,6 +40,16 @@ export function Sidebar() {
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+      setIsSigningOut(false);
+    }
   };
 
   return (
@@ -68,7 +80,7 @@ export function Sidebar() {
             </div>
             <div>
               <h1 className="text-xl font-bold">DocuMate+</h1>
-              <p className="text-sm text-muted-foreground">Secure & Local</p>
+              <p className="text-sm text-muted-foreground">Secure & Cloud</p>
             </div>
           </div>
 
@@ -76,7 +88,7 @@ export function Sidebar() {
           <div className="p-4 border-b">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start gap-3 p-3">
+                <Button variant="ghost" className="w-full justify-start gap-3 p-3" disabled={isSigningOut}>
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                       {user ? getInitials(user.name) : 'U'}
@@ -86,6 +98,7 @@ export function Sidebar() {
                     <p className="text-sm font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
+                  {isSigningOut && <Loader2 className="h-4 w-4 animate-spin" />}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
@@ -94,9 +107,18 @@ export function Sidebar() {
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="text-red-600">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
+                <DropdownMenuItem onClick={handleSignOut} className="text-red-600" disabled={isSigningOut}>
+                  {isSigningOut ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing Out...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </>
+                  )}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -134,7 +156,7 @@ export function Sidebar() {
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <p className="text-xs text-green-800 dark:text-green-200">
-                  All data stored locally
+                  Encrypted cloud storage
                 </p>
               </div>
             </div>

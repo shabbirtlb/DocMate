@@ -211,12 +211,22 @@ export async function signIn(email: string, password: string): Promise<{ success
 
 export async function signOut(): Promise<void> {
   try {
-    await supabase.auth.signOut();
+    // Clear local storage first
     localStorage.removeItem('documate-current-user');
+    
+    // Then sign out from Supabase
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Supabase sign out error:', error);
+    }
+    
+    // Force page reload to clear all state
+    window.location.reload();
   } catch (error) {
     console.error('Sign out error:', error);
-    // Still clear local storage even if Supabase call fails
+    // Still clear local storage and reload even if Supabase call fails
     localStorage.removeItem('documate-current-user');
+    window.location.reload();
   }
 }
 
@@ -237,12 +247,21 @@ export async function deleteAccount(): Promise<boolean> {
 
     await Promise.all(deletePromises);
 
-    // Delete auth user (this requires admin privileges, so we'll just sign out)
-    await signOut();
+    // Clear local storage
+    localStorage.removeItem('documate-current-user');
+    
+    // Sign out from Supabase
+    await supabase.auth.signOut();
+    
+    // Force page reload to clear all state
+    window.location.reload();
 
     return true;
   } catch (error) {
     console.error('Error deleting account:', error);
+    // Still try to clear local state
+    localStorage.removeItem('documate-current-user');
+    window.location.reload();
     return false;
   }
 }

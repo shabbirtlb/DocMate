@@ -11,17 +11,23 @@ const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const finalUrl = supabaseUrl || defaultUrl;
 const finalKey = supabaseAnonKey || defaultKey;
 
-if (!finalUrl || !finalKey) {
-  console.error('Supabase configuration missing. Using fallback values.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Supabase environment variables not found. Using fallback values.');
 }
 
-export const supabase = createClient(finalUrl, finalKey);
+export const supabase = createClient(finalUrl, finalKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false
+  }
+});
 
 // Encryption utilities
 export class EncryptionService {
   private static getEncryptionKey(userId: string): string {
     // In production, this should be derived from user's password or a secure key derivation function
-    return CryptoJS.SHA256(userId + 'documate-encryption-salt').toString();
+    return CryptoJS.SHA256(userId + 'documate-encryption-salt-2024').toString();
   }
 
   static encrypt(data: any, userId: string): string {
