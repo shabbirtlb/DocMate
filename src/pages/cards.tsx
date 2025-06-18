@@ -228,6 +228,17 @@ export function Cards() {
     return today.toISOString().split('T')[0];
   };
 
+  const handleSupportContactClick = (supportContact: string) => {
+    if (supportContact.startsWith('http://') || supportContact.startsWith('https://')) {
+      window.open(supportContact, '_blank', 'noopener,noreferrer');
+    } else if (supportContact.includes('@')) {
+      window.open(`mailto:${supportContact}`, '_self');
+    } else {
+      // Assume it's a phone number
+      window.open(`tel:${supportContact}`, '_self');
+    }
+  };
+
   const renderStatusModal = () => {
     const categorized = categorizeCards();
 
@@ -528,7 +539,7 @@ export function Cards() {
                     id="support"
                     value={newCard.supportContact}
                     onChange={(e) => setNewCard(prev => ({ ...prev, supportContact: e.target.value }))}
-                    placeholder="https://bank.com/support or phone number"
+                    placeholder="https://bank.com/support or phone number or email"
                   />
                 </div>
                 <Button onClick={handleAddCard} className="w-full">
@@ -820,13 +831,7 @@ export function Cards() {
                           variant="outline"
                           size="sm"
                           className="w-full"
-                          onClick={() => {
-                            if (card.supportContact?.startsWith('http')) {
-                              window.open(card.supportContact, '_blank');
-                            } else {
-                              window.open(`tel:${card.supportContact}`, '_self');
-                            }
-                          }}
+                          onClick={() => handleSupportContactClick(card.supportContact!)}
                         >
                           <ExternalLink className="h-3 w-3 mr-2" />
                           Contact Support

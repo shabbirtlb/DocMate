@@ -8,8 +8,6 @@ import {
   Trash2,
   AlertCircle,
   ExternalLink,
-  ToggleLeft,
-  ToggleRight,
   Lightbulb,
   CheckCircle,
   XCircle,
@@ -25,9 +23,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { getSubscriptions, saveSubscription, deleteSubscription } from '@/utils/localdb';
 import { generateUUID } from '@/utils/uuid';
 import { getSubscriptionStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
@@ -90,7 +88,6 @@ export function Subscriptions() {
     planName: '',
     billingCycle: 'monthly' as const,
     renewalDate: '',
-    autoRenewal: true,
     managementUrl: '',
     cost: '',
     currency: 'USD',
@@ -214,7 +211,7 @@ export function Subscriptions() {
       planName: newSubscription.planName,
       billingCycle: newSubscription.billingCycle,
       renewalDate: newSubscription.renewalDate,
-      autoRenewal: newSubscription.autoRenewal,
+      autoRenewal: true, // Default to true since we removed the toggle
       managementUrl: newSubscription.managementUrl || undefined,
       cost: newSubscription.cost ? parseFloat(newSubscription.cost) : undefined,
       currency: newSubscription.currency,
@@ -229,7 +226,6 @@ export function Subscriptions() {
         planName: '',
         billingCycle: 'monthly',
         renewalDate: '',
-        autoRenewal: true,
         managementUrl: '',
         cost: '',
         currency: 'USD',
@@ -268,6 +264,15 @@ export function Subscriptions() {
       
       return total + monthlyCost;
     }, 0);
+  };
+
+  const handleManagementUrlClick = (managementUrl: string) => {
+    if (managementUrl.startsWith('http://') || managementUrl.startsWith('https://')) {
+      window.open(managementUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      // If no protocol, assume https
+      window.open(`https://${managementUrl}`, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const renderStatusModal = () => {
@@ -611,14 +616,6 @@ export function Subscriptions() {
                     placeholder="https://service.com/manage"
                   />
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="autoRenewal"
-                    checked={newSubscription.autoRenewal}
-                    onCheckedChange={(checked) => setNewSubscription(prev => ({ ...prev, autoRenewal: checked }))}
-                  />
-                  <Label htmlFor="autoRenewal">Auto-renewal enabled</Label>
-                </div>
                 <Button onClick={handleAddSubscription} className="w-full">
                   Add Subscription
                 </Button>
@@ -879,11 +876,6 @@ export function Subscriptions() {
                       {status === 'expiring' && <AlertCircle className="h-5 w-5 text-yellow-500" />}
                       {status === 'expired' && <XCircle className="h-5 w-5 text-red-500" />}
                       {status === 'active' && <CheckCircle className="h-5 w-5 text-green-500" />}
-                      {subscription.autoRenewal ? (
-                        <ToggleRight className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="h-5 w-5 text-gray-400" />
-                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -914,17 +906,13 @@ export function Subscriptions() {
                       </div>
                     )}
                     
-                    <div className="text-xs text-muted-foreground">
-                      Auto-renewal: {subscription.autoRenewal ? 'Enabled' : 'Disabled'}
-                    </div>
-                    
                     {subscription.managementUrl && (
                       <div className="pt-2">
                         <Button
                           variant="outline"
                           size="sm"
                           className="w-full"
-                          onClick={() => window.open(subscription.managementUrl, '_blank')}
+                          onClick={() => handleManagementUrlClick(subscription.managementUrl!)}
                         >
                           <ExternalLink className="h-3 w-3 mr-2" />
                           Manage Subscription
