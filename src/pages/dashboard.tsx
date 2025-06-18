@@ -242,7 +242,7 @@ export function Dashboard() {
   const getItemIcon = (type: string) => {
     switch (type) {
       case 'document':
-        return <FileText className="h-4 w-4 text-blue-500" />;
+        return <FileText className="h-4 w-4 text-orange-500" />;
       case 'card':
         return <CreditCard className="h-4 w-4 text-green-500" />;
       case 'subscription':
@@ -585,7 +585,7 @@ export function Dashboard() {
       <Card className="border-l-4 border-l-orange-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5 text-blue-500" />
+            <Lightbulb className="h-5 w-5 text-orange-500" />
             Smart Suggestions
           </CardTitle>
         </CardHeader>
