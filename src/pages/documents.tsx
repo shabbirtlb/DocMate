@@ -28,14 +28,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { getDocuments, saveDocument, deleteDocument } from '@/utils/localdb';
+import { getDocuments, saveDocument, deleteDocument } from '@/utils/database';
 import { generateUUID } from '@/utils/uuid';
-import { getSelectedCountry } from '@/utils/countries';
+import { countries } from '@/utils/countries';
 import { getDocumentStatus, getStatusBadgeVariant, getStatusText } from '@/utils/status-helpers';
-import { getExpiryThresholds } from '@/utils/settings';
+import { getExpiryThresholds, getSelectedCountry } from '@/utils/settings';
 import { toast } from 'sonner';
 import { format, differenceInDays, subDays } from 'date-fns';
-import type { Document } from '@/utils/localdb';
+import type { Document } from '@/utils/database';
 
 const documentCategories = [
   'Identity',
@@ -59,6 +59,7 @@ export function Documents() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState('IN');
   const [newDocument, setNewDocument] = useState({
     name: '',
     category: '',
@@ -71,6 +72,7 @@ export function Documents() {
 
   useEffect(() => {
     loadDocuments();
+    loadCountry();
   }, []);
 
   useEffect(() => {
@@ -86,6 +88,15 @@ export function Documents() {
       toast.error('Failed to load documents');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCountry = async () => {
+    try {
+      const country = await getSelectedCountry();
+      setSelectedCountry(country);
+    } catch (error) {
+      console.error('Error loading country:', error);
     }
   };
 
@@ -130,7 +141,26 @@ export function Documents() {
   const getNotificationInfo = () => {
     if (!newDocument.expiryDate) return null;
 
-    const thresholds = getExpiryThresholds();
+    const getThresholds = async () => {
+      try {
+        return await getExpiryThresholds();
+      } catch {
+        return {
+          documents: { expiringSoonDays: 30, urgentDays: 7 },
+          cards: { expiringSoonDays: 90, urgentDays: 30 },
+          subscriptions: { expiringSoonDays: 7, urgentDays: 3 }
+        };
+      }
+    };
+
+    const [thresholds, setThresholds] = useState(null);
+    
+    useEffect(() => {
+      getThresholds().then(setThresholds);
+    }, []);
+
+    if (!thresholds) return null;
+
     const expiryDate = new Date(newDocument.expiryDate);
     const notificationDays = newDocument.enableCustomNotification 
       ? parseInt(newDocument.customNotificationDays) || thresholds.documents.expiringSoonDays
@@ -160,7 +190,9 @@ export function Documents() {
       expiryDate: newDocument.expiryDate || undefined,
       file: newDocument.file || undefined,
       createdAt: new Date().toISOString(),
-      tags: newDocument.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      tags: newDocument.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      customNotificationDays: newDocument.enableCustomNotification ? parseInt(newDocument.customNotificationDays) : undefined,
+      enableCustomNotification: newDocument.enableCustomNotification
     };
 
     try {
@@ -315,7 +347,7 @@ export function Documents() {
     );
   };
 
-  const country = getSelectedCountry();
+  const country = countries.find(c => c.code === selectedCountry) || countries[0];
   const categorized = categorizeDocuments();
   const notificationInfo = getNotificationInfo();
 
@@ -553,7 +585,7 @@ export function Documents() {
                     <Plus className="h-4 w-4 text-orange-600 dark:text-orange-400 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-medium text-sm">Upload Files</p>
-                      <p className="text-xs text-muted-foreground">Secure local storage</p>
+                      <p className="text-xs text-muted-foreground">Secure cloud storage</p>
                     </div>
                   </div>
                 </Button>

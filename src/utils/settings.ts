@@ -1,3 +1,5 @@
+import { getUserSettings, saveUserSettings } from './database';
+
 export interface NotificationSettings {
   enabled: boolean;
   documentExpiryDays: number;
@@ -48,50 +50,113 @@ const DEFAULT_EXPIRY_THRESHOLDS: ExpiryThresholds = {
   }
 };
 
-const NOTIFICATION_SETTINGS_KEY = 'documate-notification-settings';
-const EXPIRY_THRESHOLDS_KEY = 'documate-expiry-thresholds';
+let cachedSettings: any = null;
 
-export function getNotificationSettings(): NotificationSettings {
-  try {
-    const saved = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
-    if (saved) {
-      return { ...DEFAULT_NOTIFICATION_SETTINGS, ...JSON.parse(saved) };
-    }
-  } catch (error) {
-    console.error('Error loading notification settings:', error);
+async function getSettings(): Promise<any> {
+  if (cachedSettings) {
+    return cachedSettings;
   }
-  return DEFAULT_NOTIFICATION_SETTINGS;
+
+  try {
+    cachedSettings = await getUserSettings();
+    return cachedSettings;
+  } catch (error) {
+    console.error('Error loading settings from database:', error);
+    // Return defaults if database fails
+    return {
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
+      expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
+      country: 'IN',
+      theme: 'system'
+    };
+  }
 }
 
-export function saveNotificationSettings(settings: NotificationSettings): void {
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  const settings = await getSettings();
+  return { ...DEFAULT_NOTIFICATION_SETTINGS, ...settings.notifications };
+}
+
+export async function saveNotificationSettings(notificationSettings: NotificationSettings): Promise<void> {
   try {
-    localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings));
+    const settings = await getSettings();
+    settings.notifications = notificationSettings;
+    await saveUserSettings(settings);
+    cachedSettings = settings;
   } catch (error) {
     console.error('Error saving notification settings:', error);
+    throw error;
   }
 }
 
-export function getExpiryThresholds(): ExpiryThresholds {
-  try {
-    const saved = localStorage.getItem(EXPIRY_THRESHOLDS_KEY);
-    if (saved) {
-      return { ...DEFAULT_EXPIRY_THRESHOLDS, ...JSON.parse(saved) };
-    }
-  } catch (error) {
-    console.error('Error loading expiry thresholds:', error);
-  }
-  return DEFAULT_EXPIRY_THRESHOLDS;
+export async function getExpiryThresholds(): Promise<ExpiryThresholds> {
+  const settings = await getSettings();
+  return { ...DEFAULT_EXPIRY_THRESHOLDS, ...settings.expiryThresholds };
 }
 
-export function saveExpiryThresholds(thresholds: ExpiryThresholds): void {
+export async function saveExpiryThresholds(expiryThresholds: ExpiryThresholds): Promise<void> {
   try {
-    localStorage.setItem(EXPIRY_THRESHOLDS_KEY, JSON.stringify(thresholds));
+    const settings = await getSettings();
+    settings.expiryThresholds = expiryThresholds;
+    await saveUserSettings(settings);
+    cachedSettings = settings;
   } catch (error) {
     console.error('Error saving expiry thresholds:', error);
+    throw error;
   }
 }
 
-export function resetToDefaults(): void {
-  localStorage.removeItem(NOTIFICATION_SETTINGS_KEY);
-  localStorage.removeItem(EXPIRY_THRESHOLDS_KEY);
+export async function getSelectedCountry(): Promise<string> {
+  const settings = await getSettings();
+  return settings.country || 'IN';
+}
+
+export async function setSelectedCountry(countryCode: string): Promise<void> {
+  try {
+    const settings = await getSettings();
+    settings.country = countryCode;
+    await saveUserSettings(settings);
+    cachedSettings = settings;
+  } catch (error) {
+    console.error('Error saving country setting:', error);
+    throw error;
+  }
+}
+
+export async function getTheme(): Promise<string> {
+  const settings = await getSettings();
+  return settings.theme || 'system';
+}
+
+export async function setTheme(theme: string): Promise<void> {
+  try {
+    const settings = await getSettings();
+    settings.theme = theme;
+    await saveUserSettings(settings);
+    cachedSettings = settings;
+  } catch (error) {
+    console.error('Error saving theme setting:', error);
+    throw error;
+  }
+}
+
+export async function resetToDefaults(): Promise<void> {
+  try {
+    const defaultSettings = {
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
+      expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
+      country: 'IN',
+      theme: 'system'
+    };
+    await saveUserSettings(defaultSettings);
+    cachedSettings = defaultSettings;
+  } catch (error) {
+    console.error('Error resetting settings:', error);
+    throw error;
+  }
+}
+
+// Clear cache when needed
+export function clearSettingsCache(): void {
+  cachedSettings = null;
 }

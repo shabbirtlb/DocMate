@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { getCurrentUser, signIn, signUp, signOut, deleteAccount } from '@/utils/auth';
+import { getCurrentUser, signIn, signUp, signOut, deleteAccount, initAuthListener } from '@/utils/auth';
 import type { User, AuthState } from '@/utils/auth';
 
 interface AuthContextType extends AuthState {
@@ -19,6 +19,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    // Initialize auth listener
+    initAuthListener((user) => {
+      setAuthState({
+        user,
+        isAuthenticated: !!user,
+        isLoading: false
+      });
+    });
+
     // Check for existing authentication on mount
     const user = getCurrentUser();
     setAuthState({
@@ -52,8 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result;
   };
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     setAuthState({
       user: null,
       isAuthenticated: false,
