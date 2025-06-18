@@ -11,7 +11,8 @@ import {
   Trash2,
   User,
   AlertTriangle,
-  Settings2
+  Settings2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +25,14 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { exportAllData, importAllData } from '@/utils/localdb';
 import { countries, getSelectedCountry, setSelectedCountry } from '@/utils/countries';
 import { requestNotificationPermission } from '@/utils/notifications';
-import { getNotificationSettings, getExpiryThresholds, type NotificationSettings, type ExpiryThresholds } from '@/utils/settings';
+import { 
+  getNotificationSettings, 
+  getExpiryThresholds, 
+  DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_EXPIRY_THRESHOLDS,
+  type NotificationSettings, 
+  type ExpiryThresholds 
+} from '@/utils/settings';
 import { NotificationSettingsComponent } from '@/components/settings/notification-settings';
 import { toast } from 'sonner';
 
@@ -34,11 +42,31 @@ export function Settings() {
   const [selectedCountry, setSelectedCountryState] = useState(getSelectedCountry().code);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(getNotificationSettings());
-  const [expiryThresholds, setExpiryThresholds] = useState<ExpiryThresholds>(getExpiryThresholds());
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
+  const [expiryThresholds, setExpiryThresholds] = useState<ExpiryThresholds>(DEFAULT_EXPIRY_THRESHOLDS);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
     setNotificationPermission(Notification.permission);
+    
+    // Load settings asynchronously
+    const loadSettings = async () => {
+      try {
+        const [notificationSettingsData, expiryThresholdsData] = await Promise.all([
+          getNotificationSettings(),
+          getExpiryThresholds()
+        ]);
+        setNotificationSettings(notificationSettingsData);
+        setExpiryThresholds(expiryThresholdsData);
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        toast.error('Failed to load settings');
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+
+    loadSettings();
   }, []);
 
   const handleCountryChange = (countryCode: string) => {
@@ -273,12 +301,23 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="notifications">
-          <NotificationSettingsComponent
-            settings={notificationSettings}
-            thresholds={expiryThresholds}
-            onSettingsChange={setNotificationSettings}
-            onThresholdsChange={setExpiryThresholds}
-          />
+          {isLoadingSettings ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Loading settings...</span>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <NotificationSettingsComponent
+              settings={notificationSettings}
+              thresholds={expiryThresholds}
+              onSettingsChange={setNotificationSettings}
+              onThresholdsChange={setExpiryThresholds}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="data" className="space-y-6">
