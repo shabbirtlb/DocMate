@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getDocuments, getCards, getSubscriptions } from '@/utils/localdb';
-import { checkUpcomingExpirations } from '@/utils/notifications';
+import { checkUpcomingExpirations, scheduleNotifications, clearScheduledNotifications } from '@/utils/notifications';
 
 export function NotificationManager() {
   useEffect(() => {
@@ -27,10 +27,16 @@ export function NotificationManager() {
     // Check on mount
     checkExpirations();
 
+    // Schedule notifications after authentication
+    scheduleNotifications();
+
     // Set up interval to check daily
     const interval = setInterval(checkExpirations, 24 * 60 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearScheduledNotifications();
+    };
   }, []);
 
   return null;

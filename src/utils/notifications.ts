@@ -1,5 +1,8 @@
 import { getNotificationSettings } from './settings';
 
+// Store timeout IDs for cleanup
+let scheduledTimeouts: NodeJS.Timeout[] = [];
+
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   if (!('Notification' in window)) {
     console.warn('This browser does not support notifications');
@@ -123,20 +126,20 @@ export function scheduleNotifications(): void {
 
     const timeUntilNotification = scheduledTime.getTime() - now.getTime();
 
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       // This would trigger the notification check
       // In a real app, you'd want to use a service worker for this
       console.log('Scheduled notification check triggered');
     }, timeUntilNotification);
+
+    scheduledTimeouts.push(timeoutId);
   });
 }
 
-function clearScheduledNotifications(): void {
-  // In a real implementation, you'd clear any existing timeouts/intervals
-  // For now, this is a placeholder
-}
-
-// Initialize notification scheduling when the module loads
-if (typeof window !== 'undefined') {
-  scheduleNotifications();
+export function clearScheduledNotifications(): void {
+  // Clear all existing timeouts
+  scheduledTimeouts.forEach(timeoutId => {
+    clearTimeout(timeoutId);
+  });
+  scheduledTimeouts = [];
 }
